@@ -1,5 +1,11 @@
 import shlex
 import sys
+if True:
+    try:
+        from rich.table import Table
+        from rich import box
+    except ImportError:
+        pass
 from . import state
 from .config import check_api_key, print_info, print_error, print_warn, print_success, HAS_RICH, console, Fore, Style, CHARS_PER_TOKEN
 from .ui import show_banner, show_help, select_startup_mode
