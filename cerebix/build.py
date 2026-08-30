@@ -5,7 +5,8 @@ import os
 import requests
 from datetime import datetime
 from .config import print_error, print_warn, print_info, HEADERS, HAS_RICH, console
-from .spinner import _thinking_spinner
+from .ui import display_plan, print_build_summary
+from .spinner import _thinking_spinner, _PLAN_MESSAGES, _CODE_MESSAGES
 from .routing import _heuristic_pick, _pick_by_context
 from .models import choose_model
 if HAS_RICH:
