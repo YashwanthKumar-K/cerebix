@@ -51,7 +51,7 @@ Cerebix is packaged as a standard, globally accessible Python module.
 
 ### 1. Clone & Install
 ```bash
-git clone https://github.com/YOUR_USERNAME/cerebix.git
+git clone https://github.com/YashwanthKumar-K/cerebix.git
 cd cerebix
 pip install -e .
 ```
