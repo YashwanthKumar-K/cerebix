@@ -67,8 +67,17 @@ def stream_response(payload):
     elapsed = time.time() - start_time
     print()  # newline
 
+    # Detect empty responses
+    if not full_text.strip():
+        print_warn(
+            f"⚠ Model returned an empty response after {elapsed:.1f}s. "
+            "This usually means the prompt was too large for the model's context window, "
+            "or the model is overloaded. Try /select to switch to a different model."
+        )
+        return None
+
     # Re-render as formatted markdown panel
-    if HAS_RICH and full_text.strip():
+    if HAS_RICH:
         console.print()
         console.print(Panel(
             Markdown(full_text),

@@ -58,15 +58,22 @@ def load_project_as_prompt(folder_path, instruction="Review this project:"):
     result = "\n".join(combined)
     est_tokens = len(result) // CHARS_PER_TOKEN
     ctx_limit = state.current_model.get("context", 0) if state.current_model else 0
+    model_name = state.current_model.get("name", "current model") if state.current_model else "current model"
     print_info(f"Collected {file_count} files — ~{est_tokens:,} tokens")
 
     if isinstance(ctx_limit, int) and ctx_limit > 0 and est_tokens > ctx_limit * 0.8:
         print_error(
-            f"Prompt (~{est_tokens:,} tokens) may exceed model context ({format_ctx(ctx_limit)}). "
-            "API may truncate or reject."
+            f"⚠ Project is ~{est_tokens:,} tokens but {model_name} only supports {format_ctx(ctx_limit)}. "
+            "The model will likely return an empty or broken response!"
         )
-        if input("Proceed anyway? (y/n): ").strip().lower() != "y":
+        print_info("Tip: Use /select to pick a model with a larger context window, then retry.")
+        if input("Send anyway? (y/n): ").strip().lower() != "y":
             return "ERROR: Cancelled."
+    elif est_tokens > 30000:
+        print_warn(
+            f"⚠ Large prompt (~{est_tokens:,} tokens). Some free models may struggle with this. "
+            "If you get an empty response, try /select and pick a model with a bigger context window."
+        )
 
     return result
 
