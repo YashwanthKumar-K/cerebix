@@ -42,9 +42,12 @@ def get_free_models():
         if _is_blocked(model_id):
             continue
 
-        # BULLETPROOF FIX: We no longer trust OpenRouter's metadata pricing (pp == 0 and cp == 0)
-        # because of API glitches. A model MUST explicitly have the ":free" tag to be used.
-        is_free = model_id.endswith(":free")
+        # BULLETPROOF FIX: Primary check is the ":free" tag.
+        # Secondary: also accept models where BOTH prompt AND completion pricing are zero,
+        # as long as they're not from a blocked provider (already filtered above).
+        has_free_tag = model_id.endswith(":free")
+        is_zero_cost = (pp == 0 and cp == 0)
+        is_free = has_free_tag or is_zero_cost
         
         if is_free:
             ctx = m.get("context_length", 0)
