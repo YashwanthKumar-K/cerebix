@@ -5,6 +5,8 @@ from .config import IGNORE_DIRS, IGNORE_EXTENSIONS, MAX_FILE_SIZE_KB, CHARS_PER_
 from .models import format_ctx
 
 def load_file_as_prompt(filepath, instruction="Review this file:"):
+    if os.path.isdir(filepath):
+        return "ERROR: That's a folder, not a file. Use /project instead."
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             content = f.read()
@@ -12,6 +14,8 @@ def load_file_as_prompt(filepath, instruction="Review this file:"):
         return None
     except UnicodeDecodeError:
         return "ERROR: Binary file — can't read as text."
+    except PermissionError:
+        return "ERROR: Permission denied — can't read that file."
     return f"{instruction}\n\nFile: {os.path.basename(filepath)}\n```\n{content}\n```"
 
 
