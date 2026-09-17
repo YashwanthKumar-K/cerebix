@@ -3,6 +3,7 @@ from . import state
 from .config import print_error, print_warn, print_success, print_info, HAS_RICH, console
 from .models import display_model_table
 from .api import ask_model_isolated
+from .spinner import _thinking_spinner, _PARALLEL_MESSAGES, _SYNTHESIS_MESSAGES
 if HAS_RICH:
     from rich.markdown import Markdown
     from rich.panel import Panel
@@ -30,17 +31,24 @@ def fan_out(prompt, free_models):
     print_info(f"\nSending to {len(selected)} model(s)...")
     results = []
 
-    with ThreadPoolExecutor(max_workers=len(selected)) as ex:
-        futures = {ex.submit(ask_model_isolated, prompt, m["id"]): m for m in selected}
-        for future in as_completed(futures):
-            m = futures[future]
-            try:
-                text = future.result()
-                results.append((m["name"], m["id"], text))
-                print_success(f"Received from {m['name']}")
-            except Exception as e:
-                results.append((m["name"], m["id"], f"Error: {e}"))
-                print_error(f"Error from {m['name']}: {e}")
+    with _thinking_spinner(_PARALLEL_MESSAGES):
+        with ThreadPoolExecutor(max_workers=len(selected)) as ex:
+            futures = {ex.submit(ask_model_isolated, prompt, m["id"]): m for m in selected}
+            raw_results = []
+            for future in as_completed(futures):
+                m = futures[future]
+                try:
+                    text = future.result()
+                    raw_results.append((m["name"], m["id"], text, None))
+                except Exception as e:
+                    raw_results.append((m["name"], m["id"], f"Error: {e}", e))
+
+    for name, mid, text, err in raw_results:
+        if err:
+            print_error(f"Error from {name}: {err}")
+        else:
+            print_success(f"Received from {name}")
+        results.append((name, mid, text))
 
     for name, mid, text in results:
         if HAS_RICH:
@@ -72,7 +80,8 @@ def fan_out(prompt, free_models):
             synth_prompt += f"--- Response {i} (Model: {name} | ID: {mid}) ---\n{text}\n\n"
         judge = state.current_model or free_models[0]
         print_info(f"Synthesizing with {judge['name']}...")
-        synth = ask_model_isolated(synth_prompt, judge["id"])
+        with _thinking_spinner(_SYNTHESIS_MESSAGES):
+            synth = ask_model_isolated(synth_prompt, judge["id"])
         if HAS_RICH:
             console.print()
             console.print(Panel(Markdown(synth), title="[bold cyan]Synthesis[/]", border_style="cyan", box=box.DOUBLE))

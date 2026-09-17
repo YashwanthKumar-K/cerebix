@@ -1,6 +1,6 @@
-import threading
+import sys
 import time
-from contextlib import contextmanager
+import threading
 from .config import HAS_RICH, console
 
 # Rotating messages shown during Phase 1 (architecture planning)
@@ -31,54 +31,137 @@ _CODE_MESSAGES = [
     "Assembling the module...",
 ]
 
+# Rotating messages shown during normal chat response generation
+_CHAT_MESSAGES = [
+    "Thinking...",
+    "Formulating response...",
+    "Consulting model...",
+    "Connecting thoughts...",
+    "Reasoning through prompt...",
+    "Drafting answer...",
+    "Synthesizing knowledge...",
+]
+
+# Rotating messages shown during debate rounds
+_DEBATE_MESSAGES = [
+    "Formulating arguments...",
+    "Analyzing opponent's points...",
+    "Drafting rebuttal...",
+    "Sharpening counterpoints...",
+    "Reviewing debate flow...",
+    "Preparing next speech...",
+]
+
+# Rotating messages shown during Chief Justice deliberation
+_JUDGE_MESSAGES = [
+    "Evaluating debate arguments...",
+    "Reviewing round transcripts...",
+    "Deliberating verdict...",
+    "Scoring logic and rebuttals...",
+    "Weighing persuasive points...",
+    "Finalizing judicial scorecard...",
+]
+
+# Rotating messages shown during consensus and fanout synthesis
+_SYNTHESIS_MESSAGES = [
+    "Synthesizing responses...",
+    "Resolving contradictions...",
+    "Evaluating evidence...",
+    "Consolidating consensus...",
+    "Drafting unified answer...",
+]
+
+# Rotating messages shown during parallel queries
+_PARALLEL_MESSAGES = [
+    "Querying models in parallel...",
+    "Waiting for model responses...",
+    "Gathering candidate answers...",
+    "Streaming multi-model insights...",
+]
 
 
-@contextmanager
-def _thinking_spinner(messages):
-    """Context manager: shows a rotating spinner + message while waiting for an API call.
+class ThinkingSpinner:
+    """An animated, non-blocking terminal spinner with rotating status messages.
 
-    Usage:
-        with _thinking_spinner(_PLAN_MESSAGES):
-            result = slow_api_call()
+    Supports both context manager (`with ThinkingSpinner(messages):`)
+    and manual lifecycle (`spinner.start()`, `spinner.stop()`).
     """
-    stop_event = threading.Event()
-    start_time = time.time()
-    state = {"idx": 0}
 
-    if HAS_RICH:
-        def _rotate(status_obj):
-            while not stop_event.wait(0.1):  # update every 100ms for smooth timer
-                elapsed = time.time() - start_time
-                # rotate the text message every 2.5 seconds
-                state["idx"] = int((elapsed // 2.5) % len(messages))
-                msg = messages[state["idx"]]
-                status_obj.update(f"[bold cyan]{msg}[/] [dim]({elapsed:.1f}s)[/]")
+    FRAMES_UNICODE = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    FRAMES_ASCII = ["|", "/", "-", "\\"]
 
-        with console.status(f"[bold cyan]{messages[0]}[/] [dim](0.0s)[/]", spinner="dots") as st:
-            t = threading.Thread(target=_rotate, args=(st,), daemon=True)
-            t.start()
-            try:
-                yield
-            finally:
-                stop_event.set()
-                t.join(timeout=1)
-    else:
-        # Fallback: print cycling messages with carriage return
-        def _rotate_plain():
-            while not stop_event.wait(0.1):
-                elapsed = time.time() - start_time
-                state["idx"] = int((elapsed // 2.5) % len(messages))
-                msg = messages[state["idx"]]
-                print(f"\r  {msg} ({elapsed:.1f}s)    ", end="", flush=True)
+    def __init__(self, messages=None, interval=0.08, rotate_every=2.5):
+        self.messages = list(messages) if messages else ["Thinking..."]
+        self.interval = interval
+        self.rotate_every = rotate_every
+        self.stop_event = threading.Event()
+        self.thread = None
+        self.start_time = 0
+        self._running = False
 
-        print(f"  {messages[0]} (0.0s)", end="", flush=True)
-        t = threading.Thread(target=_rotate_plain, daemon=True)
-        t.start()
+    def _spin(self):
         try:
-            yield
-        finally:
-            stop_event.set()
-            t.join(timeout=1)
-            print()  # newline after spinner clears
+            "⠋".encode(sys.stdout.encoding or "utf-8")
+            frames = self.FRAMES_UNICODE
+        except Exception:
+            frames = self.FRAMES_ASCII
+
+        frame_idx = 0
+        last_len = 0
+
+        while not self.stop_event.wait(self.interval):
+            elapsed = time.time() - self.start_time
+            msg_idx = int((elapsed // self.rotate_every) % len(self.messages))
+            msg = self.messages[msg_idx]
+            frame = frames[frame_idx % len(frames)]
+            frame_idx += 1
+
+            styled_text = f"\r\033[36m{frame}\033[0m \033[1;36m{msg}\033[0m \033[90m({elapsed:.1f}s)\033[0m"
+            plain_len = len(frame) + 1 + len(msg) + 1 + len(f"({elapsed:.1f}s)")
+            pad = max(0, last_len - plain_len)
+            last_len = plain_len
+
+            try:
+                sys.stdout.write(styled_text + " " * pad)
+                sys.stdout.flush()
+            except Exception:
+                break
+
+    def start(self):
+        """Start the background spinner animation."""
+        if self._running:
+            return self
+        self._running = True
+        self.stop_event.clear()
+        self.start_time = time.time()
+        self.thread = threading.Thread(target=self._spin, daemon=True)
+        self.thread.start()
+        return self
+
+    def stop(self):
+        """Stop the spinner and erase the spinner line completely."""
+        if not self._running:
+            return
+        self._running = False
+        self.stop_event.set()
+        if self.thread and self.thread.is_alive():
+            self.thread.join(timeout=0.4)
+        try:
+            sys.stdout.write("\r" + " " * 80 + "\r")
+            sys.stdout.flush()
+        except Exception:
+            pass
+
+    def __enter__(self):
+        return self.start()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.stop()
+
+
+def _thinking_spinner(messages):
+    """Context manager wrapper for backward compatibility with build.py and callers."""
+    return ThinkingSpinner(messages)
+
 
 

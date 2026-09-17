@@ -6,6 +6,7 @@ from .config import print_error, print_warn, print_info, print_success, HAS_RICH
 from .models import display_model_table, format_ctx
 from .api import ask_model_isolated
 from .routing import _pick_by_context
+from .spinner import _thinking_spinner, _DEBATE_MESSAGES, _JUDGE_MESSAGES
 
 if HAS_RICH:
     from rich.panel import Panel
@@ -206,10 +207,11 @@ def run_debate(raw_args, free_models):
             )
 
         print_info(f"🔵 {pro_model['name']} is preparing speech...")
-        pro_speech = ask_model_isolated(
-            f"{pro_system}\n\n[USER INSTRUCTION]\n{pro_prompt}",
-            pro_model["id"]
-        )
+        with _thinking_spinner(_DEBATE_MESSAGES):
+            pro_speech = ask_model_isolated(
+                f"{pro_system}\n\n[USER INSTRUCTION]\n{pro_prompt}",
+                pro_model["id"]
+            )
         pro_prev = pro_speech.strip()
         transcript_entries.append((r, "PRO", pro_model["name"], pro_prev))
 
@@ -246,10 +248,11 @@ def run_debate(raw_args, free_models):
             )
 
         print_info(f"🟣 {con_model['name']} is preparing speech...")
-        con_speech = ask_model_isolated(
-            f"{con_system}\n\n[USER INSTRUCTION]\n{con_prompt}",
-            con_model["id"]
-        )
+        with _thinking_spinner(_DEBATE_MESSAGES):
+            con_speech = ask_model_isolated(
+                f"{con_system}\n\n[USER INSTRUCTION]\n{con_prompt}",
+                con_model["id"]
+            )
         con_prev = con_speech.strip()
         transcript_entries.append((r, "CON", con_model["name"], con_prev))
 
@@ -280,7 +283,8 @@ def run_debate(raw_args, free_models):
         f"Deliver your comprehensive evaluation, scores, and winner declaration now:"
     )
 
-    verdict = ask_model_isolated(judge_prompt, judge_model["id"])
+    with _thinking_spinner(_JUDGE_MESSAGES):
+        verdict = ask_model_isolated(judge_prompt, judge_model["id"])
 
     if HAS_RICH:
         console.print()

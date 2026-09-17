@@ -31,6 +31,7 @@ from .fanout import fan_out
 from .build import run_project_build
 from .context import load_file_as_prompt, load_project_as_prompt
 from .utils import save_code_interactive
+from .spinner import _thinking_spinner
 
 # Command registry: (command, description, usage_hint)
 COMMAND_REGISTRY = [
@@ -97,8 +98,8 @@ def main():
     saved_model = load_conversation()
 
     # Fetch models
-    print_info("Fetching free models from OpenRouter...")
-    free_models = get_free_models()
+    with _thinking_spinner(["Connecting to OpenRouter...", "Fetching free models..."]):
+        free_models = get_free_models()
     if not free_models:
         print_error("No free models found. Check your API key.")
         return
@@ -244,7 +245,8 @@ def main():
 
             # ---- Select ----
             elif cmd == "/select":
-                free_models = get_free_models()
+                with _thinking_spinner(["Refreshing available models..."]):
+                    free_models = get_free_models()
                 if free_models:
                     state.current_model = choose_model(free_models)
                     print_success(f"Selected: {state.current_model['name']}")
@@ -253,7 +255,8 @@ def main():
 
             # ---- Models ----
             elif cmd == "/models":
-                free_models = get_free_models()
+                with _thinking_spinner(["Fetching free models list..."]):
+                    free_models = get_free_models()
                 display_model_table(free_models)
 
             # ---- Save / Load / Export ----

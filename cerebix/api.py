@@ -2,6 +2,7 @@ import requests
 import time
 import json
 from .config import print_error, print_warn, get_headers, HAS_RICH, console, Fore, Style
+from .spinner import ThinkingSpinner, _CHAT_MESSAGES
 if HAS_RICH:
     from rich.markdown import Markdown
     from rich.panel import Panel
@@ -26,18 +27,25 @@ def stream_response(payload):
     payload["stream"] = True
 
     backoff = [5, 15, 30]
+    spinner = ThinkingSpinner(_CHAT_MESSAGES)
+    spinner.start()
+    resp = None
+
     for attempt in range(len(backoff) + 1):
         try:
             resp = requests.post(url, headers=get_headers(), json=payload, stream=True, timeout=60)
             if resp.status_code == 429:
+                spinner.stop()
                 if attempt < len(backoff):
                     wait_time = _get_retry_wait(resp, backoff[attempt])
                     print_warn(f"Rate limited. Retrying in {wait_time:.0f}s...")
                     time.sleep(wait_time)
+                    spinner.start()
                     continue
                 print_error("Rate limited after multiple attempts.")
                 return None
             if resp.status_code != 200:
+                spinner.stop()
                 try:
                     msg = resp.json().get("error", {}).get("message", resp.text[:200])
                 except Exception:
@@ -46,37 +54,46 @@ def stream_response(payload):
                 return None
             break
         except requests.RequestException as e:
+            spinner.stop()
             if attempt < len(backoff):
                 print_warn(f"Request failed: {e}. Retrying in {backoff[attempt]}s...")
                 time.sleep(backoff[attempt])
+                spinner.start()
                 continue
             print_error(f"Request failed: {e}")
             return None
 
-    if HAS_RICH:
-        console.print("[bold green]Assistant:[/]")
-    else:
-        print(f"{Fore.GREEN}Assistant:{Style.RESET_ALL}")
-
     full_text = ""
     start_time = time.time()
-    for line in resp.iter_lines(decode_unicode=True):
-        if not line:
-            continue
-        if line.startswith("data: "):
-            payload_str = line[6:]
-            if payload_str.strip() == "[DONE]":
-                break
-            try:
-                chunk = json.loads(payload_str)
-                choices = chunk.get("choices", [])
-                if choices and len(choices) > 0:
-                    token = choices[0].get("delta", {}).get("content", "")
-                    if token:
-                        print(token, end="", flush=True)
-                        full_text += token
-            except json.JSONDecodeError:
+    header_printed = False
+
+    try:
+        for line in resp.iter_lines(decode_unicode=True):
+            if not line:
                 continue
+            if line.startswith("data: "):
+                payload_str = line[6:]
+                if payload_str.strip() == "[DONE]":
+                    break
+                try:
+                    chunk = json.loads(payload_str)
+                    choices = chunk.get("choices", [])
+                    if choices and len(choices) > 0:
+                        token = choices[0].get("delta", {}).get("content", "")
+                        if token:
+                            if not header_printed:
+                                spinner.stop()
+                                if HAS_RICH:
+                                    console.print("[bold green]Assistant:[/]")
+                                else:
+                                    print(f"{Fore.GREEN}Assistant:{Style.RESET_ALL}")
+                                header_printed = True
+                            print(token, end="", flush=True)
+                            full_text += token
+                except json.JSONDecodeError:
+                    continue
+    finally:
+        spinner.stop()
 
     elapsed = time.time() - start_time
     print()  # newline

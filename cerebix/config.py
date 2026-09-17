@@ -52,7 +52,7 @@ if not HAS_RICH:
         class Style:
             RESET_ALL = BRIGHT = ""
 
-console = Console() if HAS_RICH else None
+console = Console(force_terminal=True) if HAS_RICH else None
 
 
 # ---------- Print helpers ----------
