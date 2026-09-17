@@ -12,6 +12,7 @@ setup(
     install_requires=[
         "requests",
         "rich",
-        "colorama"
+        "colorama",
+        "prompt_toolkit",
     ],
 )

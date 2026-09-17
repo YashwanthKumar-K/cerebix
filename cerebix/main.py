@@ -6,6 +6,17 @@ if True:
         from rich import box
     except ImportError:
         pass
+
+# Interactive autocomplete for slash commands
+_HAS_PROMPT_TOOLKIT = False
+try:
+    from prompt_toolkit import prompt as pt_prompt
+    from prompt_toolkit.completion import WordCompleter, Completer, Completion
+    from prompt_toolkit.formatted_text import HTML
+    _HAS_PROMPT_TOOLKIT = True
+except ImportError:
+    pass
+
 from . import state
 from .config import check_api_key, print_info, print_error, print_warn, print_success, HAS_RICH, console, Fore, Style, CHARS_PER_TOKEN
 from .ui import show_banner, show_help, select_startup_mode
@@ -19,6 +30,60 @@ from .fanout import fan_out
 from .build import run_project_build
 from .context import load_file_as_prompt, load_project_as_prompt
 from .utils import save_code_interactive
+
+# Command registry: (command, description, usage_hint)
+COMMAND_REGISTRY = [
+    ("/help",      "Show all commands",              ""),
+    ("/auto",      "Toggle Smart Auto-Routing",      ""),
+    ("/select",    "Switch active model",             ""),
+    ("/models",    "List all free models",            ""),
+    ("/consensus", "Multi-model jury vote",           "<prompt>"),
+    ("/fanout",    "Query models in parallel",        "<prompt>"),
+    ("/build",     "Generate a full project",         "<description>"),
+    ("/file",      "Send a file for review",          "<filepath>"),
+    ("/project",   "Send an entire folder",           "<folder>"),
+    ("/savecode",  "Extract code blocks to disk",     ""),
+    ("/system",    "Set a persona/system prompt",     "<text>"),
+    ("/rate",      "Rate last response (1-10)",       "<1-10>"),
+    ("/scores",    "View model scorecard",            ""),
+    ("/tokens",    "Show token usage",                ""),
+    ("/save",      "Save conversation",               ""),
+    ("/load",      "Load previous conversation",      ""),
+    ("/export",    "Export as markdown",               ""),
+    ("/clear",     "Clear conversation",              ""),
+    ("/exit",      "Save & exit",                     ""),
+]
+
+if _HAS_PROMPT_TOOLKIT:
+    class _CerebixCompleter(Completer):
+        """Show command suggestions with descriptions as user types."""
+        def get_completions(self, document, complete_event):
+            text = document.text_before_cursor.lstrip()
+            if not text.startswith("/"):
+                return
+            for cmd, desc, hint in COMMAND_REGISTRY:
+                if cmd.startswith(text):
+                    display_text = f"{cmd:14s} {desc}"
+                    yield Completion(cmd, start_position=-len(text), display=display_text)
+
+    _completer = _CerebixCompleter()
+
+
+def _get_input():
+    """Get user input with autocomplete if prompt_toolkit is available."""
+    if _HAS_PROMPT_TOOLKIT:
+        try:
+            return pt_prompt(
+                "\nYou: ",
+                completer=_completer,
+                complete_while_typing=True,
+            )
+        except (EOFError, KeyboardInterrupt):
+            raise
+    elif HAS_RICH:
+        return console.input("\n[bold green]You:[/] ")
+    else:
+        return input(f"\n{Fore.GREEN}You:{Style.RESET_ALL} ")
 
 def main():
 
@@ -42,10 +107,7 @@ def main():
     # Main loop
     while True:
         try:
-            if HAS_RICH:
-                user_input = console.input("\n[bold green]You:[/] ")
-            else:
-                user_input = input(f"\n{Fore.GREEN}You:{Style.RESET_ALL} ")
+            user_input = _get_input()
 
             if not user_input.strip():
                 continue
@@ -232,37 +294,15 @@ def main():
                 break
 
             else:
-                # Smart command suggestions
-                ALL_COMMANDS = [
-                    ("/help",      "Show all commands"),
-                    ("/auto",      "Toggle Smart Auto-Routing"),
-                    ("/select",    "Switch active model"),
-                    ("/models",    "List all free models"),
-                    ("/consensus", "Multi-model jury vote"),
-                    ("/fanout",    "Query multiple models in parallel"),
-                    ("/build",     "Generate a full project"),
-                    ("/file",      "Send a file for review"),
-                    ("/project",   "Send an entire folder"),
-                    ("/savecode",  "Extract code blocks to disk"),
-                    ("/system",    "Set a persona/system prompt"),
-                    ("/rate",      "Rate last response (1-10)"),
-                    ("/scores",    "View model scorecard"),
-                    ("/tokens",    "Show token usage"),
-                    ("/save",      "Save conversation"),
-                    ("/load",      "Load previous conversation"),
-                    ("/export",    "Export as markdown"),
-                    ("/clear",     "Clear conversation"),
-                    ("/exit",      "Save & exit"),
-                ]
-                # Find matches: prefix match first, then substring match
-                matches = [c for c in ALL_COMMANDS if c[0].startswith(cmd)]
+                # Smart command suggestions using shared registry
+                matches = [(c, d) for c, d, _ in COMMAND_REGISTRY if c.startswith(cmd)]
                 if not matches:
-                    matches = [c for c in ALL_COMMANDS if cmd[1:] in c[0]]
+                    matches = [(c, d) for c, d, _ in COMMAND_REGISTRY if cmd[1:] in c]
 
                 if matches:
                     print_warn(f"Unknown command: {cmd}. Did you mean:")
                     for name, desc in matches:
-                        print_info(f"  {name:12s}  {desc}")
+                        print_info(f"  {name:14s} {desc}")
                 else:
                     print_error(f"Unknown command: {cmd}. Type /help for all commands.")
 
