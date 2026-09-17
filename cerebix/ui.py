@@ -36,6 +36,8 @@ def show_help():
 | Command | Description |
 |---|---|
 | *(type anything)* | Chat with the current model |
+| `/render` | Toggle response display mode (`panel` vs `stream`) |
+| `/ssl` | Toggle SSL verification for captive portals/proxies |
 | `/system <text>` | Set a system persona/instruction |
 | `/system` | View or clear current system prompt |
 

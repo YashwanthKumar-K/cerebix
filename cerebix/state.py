@@ -8,4 +8,6 @@ CATEGORIES = ["code", "math", "creative", "reasoning", "documentation", "general
 ssl_verify = True
 draft_prompt = None
 failed_models = set()
+render_mode = "panel"
+
 

@@ -155,6 +155,29 @@ def set_ssl_verify(verify: bool, persist: bool = False):
         save_user_config(cfg)
 
 
+def get_render_mode():
+    """Get active render mode: 'panel' (default) or 'stream'."""
+    from . import state
+    if hasattr(state, "render_mode") and state.render_mode:
+        return state.render_mode
+    cfg = load_user_config()
+    val = cfg.get("render_mode", "panel")
+    state.render_mode = val
+    return val
+
+
+def set_render_mode(mode: str, persist: bool = False):
+    """Set active render mode ('panel' or 'stream') and optionally persist to config."""
+    from . import state
+    mode = "stream" if mode == "stream" else "panel"
+    state.render_mode = mode
+    if persist:
+        cfg = load_user_config()
+        cfg["render_mode"] = mode
+        save_user_config(cfg)
+
+
+
 
 def get_api_key():
     """Get API key from environment variable or ~/.cerebix/config.json."""

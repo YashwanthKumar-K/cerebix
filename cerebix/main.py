@@ -26,6 +26,8 @@ from .config import (
     print_success,
     get_ssl_verify,
     set_ssl_verify,
+    get_render_mode,
+    set_render_mode,
     HAS_RICH,
     console,
     Fore,
@@ -50,6 +52,7 @@ from .spinner import _thinking_spinner
 COMMAND_REGISTRY = [
     ("/help",      "Show all commands",              ""),
     ("/auto",      "Toggle Smart Auto-Routing",      ""),
+    ("/render",    "Toggle panel vs stream display",  ""),
     ("/ssl",       "Toggle SSL verify (WiFi/proxies)",""),
     ("/select",    "Switch active model",             ""),
     ("/models",    "List all free models",            ""),
@@ -165,6 +168,16 @@ def main():
                     print_success("SSL verification ENABLED (Strict secure mode).")
                 else:
                     print_warn("SSL verification DISABLED (Bypassing checks for captive portals/proxies).")
+
+            # ---- Render Mode Toggle (panel vs stream) ----
+            elif cmd in ("/render", "/stream"):
+                curr = get_render_mode()
+                new_mode = "stream" if curr == "panel" else "panel"
+                set_render_mode(new_mode, persist=True)
+                if new_mode == "stream":
+                    print_info("Render mode set to [bold cyan]stream[/] — Live tokens stream directly to terminal (no final duplicate panel).")
+                else:
+                    print_info("Render mode set to [bold green]panel[/] — Clean markdown panel rendered once upon completion.")
 
             # ---- System prompt ----
             elif cmd == "/system":

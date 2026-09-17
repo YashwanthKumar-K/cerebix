@@ -35,6 +35,27 @@ def _get_retry_wait(resp, default_seconds):
     return default_seconds
 
 
+def clean_mojibake(text):
+    """Sanitize common UTF-8 mojibake artifacts from mismatched terminal decoders."""
+    if not text or "â" not in text:
+        return text
+    replacements = [
+        ("â€”", "—"),
+        ("â€“", "–"),
+        ("â€™", "'"),
+        ("â€˜", "'"),
+        ("â€œ", '"'),
+        ("â€\x9d", '"'),
+        ("â€¢", "•"),
+        ("â€¦", "…"),
+        (" â ", " — "),
+        ("â", "—"),
+    ]
+    for bad, good in replacements:
+        text = text.replace(bad, good)
+    return text
+
+
 def stream_response(payload, free_models=None):
     """POST with stream=True, print tokens live, return full text with automated recovery."""
     url = "https://openrouter.ai/api/v1/chat/completions"
@@ -128,9 +149,14 @@ def stream_response(payload, free_models=None):
             else:
                 return None
 
+    if resp is None or resp.status_code != 200:
+        return None
+
+    render_mode = getattr(state, "render_mode", "panel") if HAS_RICH else "stream"
     full_text = ""
     start_time = time.time()
     header_printed = False
+    token_count = 0
 
     try:
         for line in resp.iter_lines(decode_unicode=True):
@@ -146,22 +172,29 @@ def stream_response(payload, free_models=None):
                     if choices and len(choices) > 0:
                         token = choices[0].get("delta", {}).get("content", "")
                         if token:
-                            if not header_printed:
-                                spinner.stop()
-                                if HAS_RICH:
-                                    console.print("[bold green]Assistant:[/]")
-                                else:
-                                    print(f"{Fore.GREEN}Assistant:{Style.RESET_ALL}")
-                                header_printed = True
-                            print(token, end="", flush=True)
+                            token_count += 1
                             full_text += token
+
+                            if render_mode == "stream":
+                                # Live streaming mode: print tokens live to terminal
+                                if not header_printed:
+                                    spinner.stop()
+                                    if HAS_RICH:
+                                        console.print("[bold green]Assistant:[/]")
+                                    else:
+                                        print(f"{Fore.GREEN}Assistant:{Style.RESET_ALL}")
+                                    header_printed = True
+                                print(token, end="", flush=True)
+                            else:
+                                # Refined panel mode: update spinner with live token count
+                                spinner.update_text(f"Generating response... ({token_count} tokens)")
                 except json.JSONDecodeError:
                     continue
     finally:
         spinner.stop()
 
     elapsed = time.time() - start_time
-    print()  # newline
+    full_text = clean_mojibake(full_text)
 
     # Detect empty responses and trigger recovery
     if not full_text.strip():
@@ -179,17 +212,27 @@ def stream_response(payload, free_models=None):
             return stream_response(payload, free_models=free_models)
         return None
 
-    # Re-render as formatted markdown panel
-    if HAS_RICH:
-        console.print()
-        console.print(Panel(
-            Markdown(full_text),
-            title=f"[bold green]Response[/] [dim]({elapsed:.1f}s)[/]",
-            border_style="green",
-            box=box.ROUNDED,
-        ))
+    # Render response cleanly — SINGLE PASS ONLY!
+    if render_mode == "panel":
+        # Refined mode: render the clean markdown panel ONCE. No duplicate raw stream!
+        if HAS_RICH:
+            console.print()
+            console.print(Panel(
+                Markdown(full_text),
+                title=f"[bold green]Response[/] [dim]({elapsed:.1f}s • {token_count} tokens • {current_model.get('name', 'AI')})[/]",
+                border_style="green",
+                box=box.ROUNDED,
+            ))
+        else:
+            print(f"\n{full_text}")
+            print(f"\n[Generated in {elapsed:.1f}s • {token_count} tokens]")
     else:
-        print(f"\n[Generated in {elapsed:.1f}s]")
+        # Live stream mode: tokens were already printed live, print compact metadata footer
+        print()  # newline
+        if HAS_RICH:
+            console.print(f"[dim](Generated in {elapsed:.1f}s • {token_count} tokens • {current_model.get('name', 'AI')})[/dim]")
+        else:
+            print(f"\n[Generated in {elapsed:.1f}s • {token_count} tokens]")
 
     return full_text
 

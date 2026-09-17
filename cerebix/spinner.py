@@ -98,6 +98,11 @@ class ThinkingSpinner:
         self.thread = None
         self.start_time = 0
         self._running = False
+        self.dynamic_text = None
+
+    def update_text(self, text):
+        """Dynamically override the spinner label (e.g. for live token counts)."""
+        self.dynamic_text = text
 
     def _spin(self):
         try:
@@ -111,8 +116,11 @@ class ThinkingSpinner:
 
         while not self.stop_event.wait(self.interval):
             elapsed = time.time() - self.start_time
-            msg_idx = int((elapsed // self.rotate_every) % len(self.messages))
-            msg = self.messages[msg_idx]
+            if self.dynamic_text:
+                msg = self.dynamic_text
+            else:
+                msg_idx = int((elapsed // self.rotate_every) % len(self.messages))
+                msg = self.messages[msg_idx]
             frame = frames[frame_idx % len(frames)]
             frame_idx += 1
 
@@ -132,6 +140,7 @@ class ThinkingSpinner:
         if self._running:
             return self
         self._running = True
+        self.dynamic_text = None
         self.stop_event.clear()
         self.start_time = time.time()
         self.thread = threading.Thread(target=self._spin, daemon=True)
