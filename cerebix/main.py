@@ -232,7 +232,39 @@ def main():
                 break
 
             else:
-                print_error(f"Unknown command: {cmd}. Type /help.")
+                # Smart command suggestions
+                ALL_COMMANDS = [
+                    ("/help",      "Show all commands"),
+                    ("/auto",      "Toggle Smart Auto-Routing"),
+                    ("/select",    "Switch active model"),
+                    ("/models",    "List all free models"),
+                    ("/consensus", "Multi-model jury vote"),
+                    ("/fanout",    "Query multiple models in parallel"),
+                    ("/build",     "Generate a full project"),
+                    ("/file",      "Send a file for review"),
+                    ("/project",   "Send an entire folder"),
+                    ("/savecode",  "Extract code blocks to disk"),
+                    ("/system",    "Set a persona/system prompt"),
+                    ("/rate",      "Rate last response (1-10)"),
+                    ("/scores",    "View model scorecard"),
+                    ("/tokens",    "Show token usage"),
+                    ("/save",      "Save conversation"),
+                    ("/load",      "Load previous conversation"),
+                    ("/export",    "Export as markdown"),
+                    ("/clear",     "Clear conversation"),
+                    ("/exit",      "Save & exit"),
+                ]
+                # Find matches: prefix match first, then substring match
+                matches = [c for c in ALL_COMMANDS if c[0].startswith(cmd)]
+                if not matches:
+                    matches = [c for c in ALL_COMMANDS if cmd[1:] in c[0]]
+
+                if matches:
+                    print_warn(f"Unknown command: {cmd}. Did you mean:")
+                    for name, desc in matches:
+                        print_info(f"  {name:12s}  {desc}")
+                else:
+                    print_error(f"Unknown command: {cmd}. Type /help for all commands.")
 
         except KeyboardInterrupt:
             print_warn("\nInterrupted. Type /exit to quit.")
