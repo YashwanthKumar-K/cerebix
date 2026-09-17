@@ -25,6 +25,7 @@ from .persistence import load_conversation, save_conversation, export_as_markdow
 from .models import get_free_models, display_model_table, choose_model, format_ctx
 from .main_chat import ask_model
 from .routing import classify_prompt
+from .debate import run_debate
 from .consensus import run_consensus
 from .fanout import fan_out
 from .build import run_project_build
@@ -37,6 +38,7 @@ COMMAND_REGISTRY = [
     ("/auto",      "Toggle Smart Auto-Routing",      ""),
     ("/select",    "Switch active model",             ""),
     ("/models",    "List all free models",            ""),
+    ("/debate",    "AI vs AI multi-round debate",     "<topic>"),
     ("/consensus", "Multi-model jury vote",           "<prompt>"),
     ("/fanout",    "Query models in parallel",        "<prompt>"),
     ("/build",     "Generate a full project",         "<description>"),
@@ -173,6 +175,13 @@ def main():
                         category = classify_prompt(last_prompt)
                         scorecard_record(state.current_model["id"], category, score)
                         print_success(f"Recorded score {score}/10 for {state.current_model['name']} in category '{category}'!")
+
+            # ---- Debate ----
+            elif cmd == "/debate":
+                if len(parts) < 2:
+                    print_error("Usage: /debate <topic> [--style standard|savage|dramatic|academic] [--rounds 2-4]")
+                else:
+                    run_debate(" ".join(parts[1:]), free_models)
 
             # ---- Consensus ----
             elif cmd == "/consensus":

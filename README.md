@@ -72,6 +72,7 @@ cerebix
 | Command | Description |
 | :--- | :--- |
 | **`/auto`** | Toggle Smart Auto-Routing ON/OFF |
+| **`/debate <topic>`** | **AI Arena** — two models debate (PRO vs CON) across rounds + judge verdict |
 | **`/consensus <prompt>`** | Run multi-model jury voting and synthesis |
 | **`/fanout <prompt>`** | Query multiple models in parallel |
 | **`/build <description>`** | Plan + generate a full multi-file project to disk |
