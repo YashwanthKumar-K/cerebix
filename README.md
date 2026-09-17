@@ -1,93 +1,88 @@
-# 🧠 Cerebix
+# cerebix
 
-<div align="center">
+A fast, terminal-native AI client built around OpenRouter's free model tier. 
 
-```
-   ____ _____ ____  _____ ____  ______  __
-  / ___| ____|  _ \| ____| __ )|_ _\ \/ /
- | |   |  _| | |_) |  _| |  _ \ | | \  / 
- | |___| |___|  _ <| |___| |_) || | /  \ 
-  \____|_____|_| \_\_____|____/|___/_/\_\
-```
-
-**The Ultimate Multi-Model AI Orchestration CLI — 100% Free**
-
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Powered by OpenRouter](https://img.shields.io/badge/API-OpenRouter-purple.svg)](https://openrouter.ai/)
-[![Rich CLI](https://img.shields.io/badge/UI-Rich-green.svg)](https://github.com/Textualize/rich)
-
-</div>
+Instead of locking you into a single model, Cerebix auto-routes prompts to the best free specialist (coding, math, reasoning, creative), pits models against each other in structured multi-round debates, and scaffolds entire multi-file codebases from scratch.
 
 ---
 
-## 💡 Why Cerebix is the Best AI CLI
+## Highlights
 
-Most AI tools lock you into a single paid provider. **Cerebix is different.** It connects to OpenRouter and leverages a collaborative fleet of **20+ 100% free AI models**, orchestrating them dynamically based on what you need. 
-
-*   **Zero Cost Guarantee**: Cerebix strictly filters and validates models using the `:free` suffix, blocking accidental charges globally.
-*   **Intelligent Auto-Routing**: Why ask a math model to write poetry? Cerebix automatically classifies your prompt and routes it to the highest-scoring model for that specific category (Coding, Reasoning, Creative, etc.).
-*   **Security First**: Built-in safeguards automatically strip sensitive secrets (`.env`, `.pem`, `id_rsa`) before uploading project context, and path-traversal protection strictly sandboxes generated project files.
-*   **Beautiful UI**: Animated thinking spinners, live token generation times (e.g. `(4.2s)`), and syntax-highlighted markdown rendering make the terminal feel like a native app.
-*   **Frictionless Setup**: Missing an API key? Cerebix detects it and automatically launches your web browser directly to the exact page you need.
-
----
-
-## ✨ Core Features
-
-*   🔄 **Smart Auto-Routing:** Analyzes your prompt and automatically routes it to the best specialist model.
-*   ⚖️ **Consensus / Jury Mode (`/consensus`):** Queries 3+ models in parallel, compares responses, and synthesizes a unified consensus answer to eliminate hallucinations.
-*   🚀 **Parallel Fan-Out (`/fanout`):** Dispatches the exact same query to multiple models concurrently for side-by-side comparison.
-*   🏗️ **Project Builder (`/build`):** Feed it an idea, and Cerebix will architect the file structure, generate every file simultaneously with cross-file awareness, and safely write the entire project to your local disk.
-*   📂 **Codebase Context (`/project` & `/file`):** Ingest individual files or entire project directories seamlessly.
-*   ⭐️ **Interactive Scorecard (`/rate`):** Rate model answers from 1-10 to build a personalized, persistent local scorecard that improves your Auto-Routing engine over time.
-*   💾 **Code Extractor (`/savecode`):** Automatically detects and exports generated code blocks to collision-safe files with a single command.
+- **100% Free**: Strict zero-cost validation. Filters out broken or misleadingly tagged models so you never spend API credits.
+- **Smart Auto-Routing (`/auto`)**: Classifies prompts and routes coding tasks to code models, reasoning tasks to math/logic models, and creative writing to high-temperature models. Learns your preferences over time via `/rate`.
+- **Multi-Agent Debate (`/debate`)**: Pit two models against each other in an adversarial, multi-turn clash (Affirmative vs Negative). Each round rebuts the opponent's exact arguments before an impartial judge model delivers a verdict.
+- **Consensus & Fan-Out (`/consensus`, `/fanout`)**: Query multiple models in parallel to eliminate hallucinations and synthesize a unified answer.
+- **Project Builder (`/build`)**: Give it a specification. Cerebix plans the architecture, generates each file with cross-file signature awareness, and writes a runnable project to disk.
+- **Codebase Context (`/project`, `/file`)**: Ingest whole folders or single files with automatic secret stripping (`.env`, `.pem`, cloud credentials) and visual ASCII file trees.
+- **Interactive Autocomplete**: Type `/` for a live, searchable command palette powered by `prompt_toolkit`.
 
 ---
 
-## ⚡ Installation & Setup
+## Quickstart
 
-Cerebix is packaged as a standard, globally accessible Python module.
+### Installation
 
-### 1. Clone & Install
+Requires Python 3.10+.
+
 ```bash
 git clone https://github.com/YashwanthKumar-K/cerebix.git
 cd cerebix
 pip install -e .
 ```
-*(This automatically installs dependencies like `requests` and `rich`, and links the `cerebix` command to your system).*
 
-### 2. Start Cerebix
-Just open your terminal from anywhere and run:
+### Running
+
 ```bash
 cerebix
 ```
 
-*(If you don't have an OpenRouter API key configured yet, Cerebix will automatically open your browser to the key creation page and show you how to set it!)*
+On first launch, if no API key is found, Cerebix opens the [OpenRouter Key Settings](https://openrouter.ai/settings/keys) in your browser and prompts you to paste your free key directly into the terminal. It gets saved to `~/.cerebix/config.json` automatically — no environment variable setup needed.
+
+*(Alternatively, you can export `OPENROUTER_API_KEY="sk-or-v1-..."` in your shell).*
 
 ---
 
-## 📚 Command Reference
+## Commands
 
-| Command | Description |
-| :--- | :--- |
-| **`/auto`** | Toggle Smart Auto-Routing ON/OFF |
-| **`/debate <topic>`** | **AI Arena** — two models debate (PRO vs CON) across rounds + judge verdict |
-| **`/consensus <prompt>`** | Run multi-model jury voting and synthesis |
-| **`/fanout <prompt>`** | Query multiple models in parallel |
-| **`/build <description>`** | Plan + generate a full multi-file project to disk |
-| **`/models`** | List all available free models |
-| **`/select`** | Manually switch your active model |
-| **`/rate <1-10>`** | Rate the model's last answer to improve auto-routing |
-| **`/scores`** | View model performance scorecard |
-| **`/system <text>`** | Set a custom persona / system instruction |
-| **`/file <path>`** | Attach a single file into the prompt |
-| **`/project <path>`** | Ingest an entire project folder |
-| **`/savecode`** | Extract and save generated code blocks to disk |
-| **`/clear`** | Clear conversation history |
-| **`/exit`** | Save session and exit |
+| Command | Usage | Description |
+|:---|:---|:---|
+| `/auto` | `/auto` | Toggle smart task-based auto-routing on/off |
+| `/debate` | `/debate <topic> [--style ...] [--rounds 2-4]` | Two models debate opposing sides with a judge verdict |
+| `/consensus` | `/consensus <prompt>` | Query multiple models in parallel and synthesize a single verified answer |
+| `/fanout` | `/fanout <prompt>` | Broadcast prompt to multiple models for side-by-side comparison |
+| `/build` | `/build <description>` | Architect and generate a full multi-file project to disk |
+| `/file` | `/file <path> [instruction]` | Load a file into context for review or debugging |
+| `/project` | `/project <path> [instruction]` | Load an entire repository with secret filtering and an ASCII tree |
+| `/models` | `/models` | Display live table of available free models and context windows |
+| `/select` | `/select` | Switch active model manually |
+| `/system` | `/system [persona]` | View, set, or clear system prompt |
+| `/rate` | `/rate <1-10>` | Rate the last response to train your local auto-routing scorecard |
+| `/scores` | `/scores` | View historical model scorecard by category |
+| `/savecode` | `/savecode` | Extract generated code blocks to collision-safe files |
+| `/tokens` | `/tokens` | Inspect estimated token usage and context utilization |
+| `/save` | `/save` | Save conversation state to disk |
+| `/load` | `/load` | Restore previous conversation state |
+| `/export` | `/export` | Export session transcript to formatted Markdown |
+| `/clear` | `/clear` | Clear conversation history |
+| `/exit` | `/exit` | Save and quit |
 
 ---
 
-## 📜 License
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+## Configuration
+
+Settings are stored in `~/.cerebix/config.json`:
+
+```json
+{
+  "openrouter_api_key": "sk-or-v1-..."
+}
+```
+
+Environment variables always take precedence if defined:
+- `OPENROUTER_API_KEY`: overrides the stored key in `config.json`.
+
+---
+
+## License
+
+[MIT](LICENSE)
