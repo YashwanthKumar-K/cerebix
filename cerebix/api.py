@@ -1,11 +1,24 @@
 import requests
 import time
 import json
-from .config import print_error, print_warn, HEADERS, HAS_RICH, console, Fore, Style
+from .config import print_error, print_warn, get_headers, HAS_RICH, console, Fore, Style
 if HAS_RICH:
     from rich.markdown import Markdown
     from rich.panel import Panel
     from rich import box
+
+
+def _get_retry_wait(resp, default_seconds):
+    """Extract Retry-After header if present, capped at 60s."""
+    retry_header = resp.headers.get("Retry-After")
+    if retry_header:
+        try:
+            val = float(retry_header)
+            return min(max(val, 1.0), 60.0)
+        except (ValueError, TypeError):
+            pass
+    return default_seconds
+
 
 def stream_response(payload):
     """POST with stream=True, print tokens live, return full text."""
@@ -15,11 +28,12 @@ def stream_response(payload):
     backoff = [5, 15, 30]
     for attempt in range(len(backoff) + 1):
         try:
-            resp = requests.post(url, headers=HEADERS, json=payload, stream=True, timeout=60)
+            resp = requests.post(url, headers=get_headers(), json=payload, stream=True, timeout=60)
             if resp.status_code == 429:
                 if attempt < len(backoff):
-                    print_warn(f"Rate limited. Retrying in {backoff[attempt]}s...")
-                    time.sleep(backoff[attempt])
+                    wait_time = _get_retry_wait(resp, backoff[attempt])
+                    print_warn(f"Rate limited. Retrying in {wait_time:.0f}s...")
+                    time.sleep(wait_time)
                     continue
                 print_error("Rate limited after multiple attempts.")
                 return None
@@ -98,11 +112,11 @@ def ask_model_isolated(prompt, model_id, max_retries=3):
 
     for attempt in range(max_retries):
         try:
-            resp = requests.post(url, headers=HEADERS, json=payload, timeout=60)
+            resp = requests.post(url, headers=get_headers(), json=payload, timeout=60)
             if resp.status_code == 429:
                 if attempt < max_retries - 1:
-                    wait = 5 * (2 ** attempt)
-                    print_warn(f"Rate limited. Waiting {wait}s...")
+                    wait = _get_retry_wait(resp, 5 * (2 ** attempt))
+                    print_warn(f"Rate limited. Waiting {wait:.0f}s...")
                     time.sleep(wait)
                     continue
                 return f"Error: Rate limited after {max_retries} attempts."

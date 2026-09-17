@@ -19,9 +19,6 @@ def load_file_as_prompt(filepath, instruction="Review this file:"):
     return f"{instruction}\n\nFile: {os.path.basename(filepath)}\n```\n{content}\n```"
 
 
-# Add secret filtering right inside load_project_as_prompt
-import fnmatch
-
 def load_project_as_prompt(folder_path, instruction="Review this project:"):
     if not os.path.isdir(folder_path):
         return None
@@ -29,14 +26,23 @@ def load_project_as_prompt(folder_path, instruction="Review this project:"):
     combined = [f"{instruction}\n\nProject: {os.path.basename(folder_path)}\n"]
     file_count = 0
 
-    # Patterns we MUST NEVER upload to OpenRouter
-    SECRET_PATTERNS = [".env", ".env.*", "*.pem", "*.key", "id_rsa", "credentials.json", ".npmrc", ".pypirc"]
+    # Patterns and directories we MUST NEVER upload to an external API
+    SECRET_PATTERNS = [
+        ".env", ".env.*", "*.env", "*.pem", "*.key", "id_rsa", "id_ed25519", "id_ecdsa", "id_dsa",
+        "credentials.json", ".npmrc", ".pypirc",
+        "*.p12", "*.pfx", "*.cer", "*.crt", "*.keystore", "*.jks", "*.jceks",
+        "secrets.yaml", "secrets.yml",
+        "*.tfstate", "*.tfstate.*", "*.tfvars",
+        "kubeconfig", "*.kubeconfig",
+        "*.secret", "*.private",
+    ]
+    SECRET_DIRS = {".ssh", ".aws", ".azure", ".kube", ".docker"}
 
     for root, dirs, files in os.walk(folder_path):
-        dirs[:] = [d for d in dirs if d not in IGNORE_DIRS]
+        dirs[:] = [d for d in dirs if d not in IGNORE_DIRS and d not in SECRET_DIRS]
         for fname in files:
             # Check secret patterns
-            is_secret = any(fnmatch.fnmatch(fname, pat) for pat in SECRET_PATTERNS)
+            is_secret = any(fnmatch.fnmatch(fname.lower(), pat) for pat in SECRET_PATTERNS)
             if is_secret:
                 continue
 

@@ -4,7 +4,7 @@ import time
 import os
 import requests
 from datetime import datetime
-from .config import print_error, print_warn, print_info, HEADERS, HAS_RICH, console
+from .config import print_error, print_warn, print_info, get_headers, HAS_RICH, console
 from .spinner import _thinking_spinner, _PLAN_MESSAGES, _CODE_MESSAGES
 from .routing import _heuristic_pick, _pick_by_context
 from .models import choose_model
@@ -123,7 +123,7 @@ def _plan_project(description, model_id):
     with _thinking_spinner(_PLAN_MESSAGES):
         for attempt in range(len(backoff) + 1):
             try:
-                resp = requests.post(url, headers=HEADERS, json=payload, timeout=90)
+                resp = requests.post(url, headers=get_headers(), json=payload, timeout=90)
                 if resp.status_code == 429:
                     if attempt < len(backoff):
                         time.sleep(backoff[attempt])
@@ -199,7 +199,7 @@ def _generate_file(file_info, plan, model_id):
     resp = None
     for attempt in range(len(backoff) + 1):
         try:
-            resp = requests.post(url, headers=HEADERS, json=payload, timeout=90)
+            resp = requests.post(url, headers=get_headers(), json=payload, timeout=90)
             if resp.status_code == 429:
                 if attempt < len(backoff):
                     print_warn(f"  Rate limited. Waiting {backoff[attempt]}s...")
@@ -401,13 +401,15 @@ def run_project_build(description, free_models):
 
         def safe_join_output_path(base_dir, relative_path):
             """Ensure the generated path cannot escape the base_dir (prevents ../ traversal)."""
-            # Strip leading slashes to prevent absolute path evaluation
-            clean_rel = relative_path.lstrip("\\/")
-            final_path = os.path.abspath(os.path.join(base_dir, clean_rel))
-            base_dir_abs = os.path.abspath(base_dir)
-            if not final_path.startswith(base_dir_abs + os.sep) and final_path != base_dir_abs:
+            from pathlib import Path
+            try:
+                base = Path(base_dir).resolve()
+                clean_rel = relative_path.lstrip("\\/")
+                target = (base / clean_rel).resolve()
+                target.relative_to(base)
+                return str(target)
+            except (ValueError, RuntimeError):
                 return None
-            return final_path
 
         for fpath, content in generated.items():
             full_path = safe_join_output_path(out_dir, fpath)

@@ -6,8 +6,8 @@ from .config import HISTORY_FILE, print_warn, print_info, print_error
 def save_conversation(filepath=HISTORY_FILE):
     data = {
         "model": state.current_model,
-        "state.system_prompt": state.system_prompt,
-        "state.auto_routing": state.auto_routing,
+        "system_prompt": state.system_prompt,
+        "auto_routing": state.auto_routing,
         "messages": state.conversation,
     }
     with open(filepath, "w", encoding="utf-8") as f:
@@ -25,11 +25,12 @@ def load_conversation(filepath=HISTORY_FILE):
             state.conversation = data
         elif isinstance(data, dict):
             state.conversation = data.get("messages", [])
-            sys_p = data.get("state.system_prompt")
+            # Support both new clean key and legacy refactored key
+            sys_p = data.get("system_prompt") or data.get("state.system_prompt")
             if sys_p:
                 state.system_prompt = sys_p
                 print_info(f"Restored system prompt: {sys_p[:80]}...")
-            state.auto_routing = data.get("state.auto_routing", False)
+            state.auto_routing = data.get("auto_routing", data.get("state.auto_routing", False))
             saved_model = data.get("model")
         print_warn(f"Resumed {len(state.conversation)} previous messages")
     except FileNotFoundError:

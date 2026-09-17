@@ -82,35 +82,111 @@ def print_warn(text):
         print(f"{Fore.YELLOW}{text}{Style.RESET_ALL}")
 
 
-# ---------- API Key ----------
-
-API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
-HEADERS = {
-    "Authorization": f"Bearer {API_KEY}",
-    "Content-Type": "application/json",
-    "X-Title": "Cerebix",
-}
-
+from pathlib import Path
 import webbrowser
 
-def check_api_key():
-    if not API_KEY:
-        print_error("OPENROUTER_API_KEY environment variable not set!")
-        print_info("You need a free OpenRouter API key to use Cerebix.")
-        print_info("Opening browser to: https://openrouter.ai/settings/keys")
-        
+# ---------- Local User Configuration ----------
+
+CEREBIX_DIR = Path.home() / ".cerebix"
+CONFIG_FILE = CEREBIX_DIR / "config.json"
+
+
+def load_user_config():
+    """Load user preferences and credentials from ~/.cerebix/config.json."""
+    if CONFIG_FILE.exists():
         try:
-            webbrowser.open("https://openrouter.ai/settings/keys")
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
         except Exception:
-            pass
-            
-        print_info("\nSet it with:")
-        if sys.platform == "win32":
-            print_info("  set OPENROUTER_API_KEY=sk-or-v1-...")
-            print_info("  (or permanently via System > Environment Variables)")
-        else:
-            print_info('  export OPENROUTER_API_KEY="sk-or-v1-..."')
+            return {}
+    return {}
+
+
+def save_user_config(cfg):
+    """Save user preferences and credentials to ~/.cerebix/config.json."""
+    try:
+        CEREBIX_DIR.mkdir(parents=True, exist_ok=True)
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2)
+    except Exception as e:
+        print_warn(f"Could not save config file: {e}")
+
+
+def get_api_key():
+    """Get API key from environment variable or ~/.cerebix/config.json."""
+    # 1. Environment variable takes precedence
+    key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    if key:
+        return key
+    # 2. Local config file fallback
+    cfg = load_user_config()
+    return cfg.get("openrouter_api_key", "").strip()
+
+
+def get_headers():
+    """Dynamically build request headers with the active API key."""
+    key = get_api_key()
+    return {
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+        "X-Title": "Cerebix",
+    }
+
+
+class _DynamicHeaders(dict):
+    """Backwards-compatible dict wrapper that dynamically delegates to get_headers()."""
+    def __getitem__(self, key):
+        return get_headers()[key]
+    def get(self, key, default=None):
+        return get_headers().get(key, default)
+    def copy(self):
+        return get_headers()
+    def __iter__(self):
+        return iter(get_headers())
+    def __len__(self):
+        return len(get_headers())
+    def __repr__(self):
+        return repr(get_headers())
+
+
+HEADERS = _DynamicHeaders()
+
+
+def check_api_key():
+    """Verify that an API key is available. If missing, open browser and offer interactive prompt."""
+    key = get_api_key()
+    if key:
+        return key
+
+    print_error("OpenRouter API key not found!")
+    print_info("You need a free OpenRouter API key to use Cerebix.")
+    print_info("Opening browser to: https://openrouter.ai/settings/keys")
+
+    try:
+        webbrowser.open("https://openrouter.ai/settings/keys")
+    except Exception:
+        pass
+
+    print_info("\nPaste your OpenRouter API key below to save it permanently.")
+    try:
+        entered_key = input("API Key (or press Enter to exit): ").strip()
+    except (KeyboardInterrupt, EOFError):
+        print()
         sys.exit(1)
+
+    if entered_key:
+        cfg = load_user_config()
+        cfg["openrouter_api_key"] = entered_key
+        save_user_config(cfg)
+        print_success(f"API key saved to {CONFIG_FILE}!")
+        return entered_key
+
+    print_warn("\nNo API key provided. Set it manually:")
+    if sys.platform == "win32":
+        print_info("  setx OPENROUTER_API_KEY \"sk-or-v1-...\"")
+    else:
+        print_info('  export OPENROUTER_API_KEY="sk-or-v1-..."')
+    sys.exit(1)
 
 # ---------- Constants ----------
 

@@ -1,6 +1,6 @@
 import requests
 import sys
-from .config import print_error, print_info, HEADERS, HAS_RICH, console
+from .config import print_error, print_info, get_headers, HAS_RICH, console
 if HAS_RICH:
     from rich.table import Table
     from rich import box
@@ -22,7 +22,7 @@ def _is_blocked(model_id):
 def get_free_models():
     """Fetch all free models from OpenRouter, excluding blocked providers."""
     try:
-        r = requests.get("https://openrouter.ai/api/v1/models", headers=HEADERS, timeout=15)
+        r = requests.get("https://openrouter.ai/api/v1/models", headers=get_headers(), timeout=15)
         r.raise_for_status()
     except requests.RequestException as e:
         print_error(f"Failed to fetch models: {e}")
