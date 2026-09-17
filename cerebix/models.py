@@ -30,21 +30,29 @@ def get_free_models():
 
     free = []
     for m in r.json().get("data", []):
-        pricing = m.get("pricing", {})
-        try:
-            pp = float(pricing.get("prompt", "1"))
-            cp = float(pricing.get("completion", "1"))
-        except (ValueError, TypeError):
-            continue
         model_id = m.get("id", "")
 
         # Skip permanently blocked/restricted providers
         if _is_blocked(model_id):
             continue
 
-        # BULLETPROOF FIX: Primary check is the ":free" tag.
-        # Secondary: also accept models where BOTH prompt AND completion pricing are zero,
-        # as long as they're not from a blocked provider (already filtered above).
+        # Parse pricing — treat missing/None/empty as zero (benefit of the doubt)
+        pricing = m.get("pricing") or {}
+        def _parse_price(val):
+            if val is None or val == "":
+                return 0.0
+            try:
+                return float(val)
+            except (ValueError, TypeError):
+                return 999.0  # unparseable = assume paid
+
+        pp = _parse_price(pricing.get("prompt"))
+        cp = _parse_price(pricing.get("completion"))
+
+        # A model is free if ANY of these are true:
+        #   1. Model ID ends with ":free"
+        #   2. Both prompt AND completion cost are $0
+        #   3. Pricing section is completely missing/empty (temporary promos)
         has_free_tag = model_id.endswith(":free")
         is_zero_cost = (pp == 0 and cp == 0)
         is_free = has_free_tag or is_zero_cost
