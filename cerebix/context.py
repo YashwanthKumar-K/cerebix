@@ -1,7 +1,7 @@
 import os
 import fnmatch
 from . import state
-from .config import IGNORE_DIRS, IGNORE_EXTENSIONS, MAX_FILE_SIZE_KB, CHARS_PER_TOKEN, print_info, print_error
+from .config import IGNORE_DIRS, IGNORE_EXTENSIONS, MAX_FILE_SIZE_KB, CHARS_PER_TOKEN, print_info, print_error, print_warn
 from .models import format_ctx
 
 def load_file_as_prompt(filepath, instruction="Review this file:"):
