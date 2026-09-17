@@ -1,8 +1,22 @@
 import requests
 import time
 import json
-from .config import print_error, print_warn, get_headers, HAS_RICH, console, Fore, Style
+from .config import (
+    print_error,
+    print_warn,
+    print_success,
+    print_info,
+    get_headers,
+    get_ssl_verify,
+    HAS_RICH,
+    console,
+    Fore,
+    Style,
+)
 from .spinner import ThinkingSpinner, _CHAT_MESSAGES
+from .recovery import classify_error, handle_error_flow, ErrorType, Action
+from . import state
+
 if HAS_RICH:
     from rich.markdown import Markdown
     from rich.panel import Panel
@@ -21,10 +35,15 @@ def _get_retry_wait(resp, default_seconds):
     return default_seconds
 
 
-def stream_response(payload):
-    """POST with stream=True, print tokens live, return full text."""
+def stream_response(payload, free_models=None):
+    """POST with stream=True, print tokens live, return full text with automated recovery."""
     url = "https://openrouter.ai/api/v1/chat/completions"
     payload["stream"] = True
+
+    # Extract user prompt for recovery context
+    user_msgs = [m.get("content", "") for m in payload.get("messages", []) if m.get("role") == "user"]
+    prompt = user_msgs[-1] if user_msgs else ""
+    current_model = state.current_model or {"id": payload.get("model", ""), "name": payload.get("model", "")}
 
     backoff = [5, 15, 30]
     spinner = ThinkingSpinner(_CHAT_MESSAGES)
@@ -33,35 +52,81 @@ def stream_response(payload):
 
     for attempt in range(len(backoff) + 1):
         try:
-            resp = requests.post(url, headers=get_headers(), json=payload, stream=True, timeout=60)
-            if resp.status_code == 429:
-                spinner.stop()
-                if attempt < len(backoff):
-                    wait_time = _get_retry_wait(resp, backoff[attempt])
-                    print_warn(f"Rate limited. Retrying in {wait_time:.0f}s...")
-                    time.sleep(wait_time)
-                    spinner.start()
-                    continue
-                print_error("Rate limited after multiple attempts.")
-                return None
-            if resp.status_code != 200:
-                spinner.stop()
-                try:
-                    msg = resp.json().get("error", {}).get("message", resp.text[:200])
-                except Exception:
-                    msg = resp.text[:200]
-                print_error(f"API Error ({resp.status_code}): {msg}")
-                return None
-            break
-        except requests.RequestException as e:
+            resp = requests.post(
+                url,
+                headers=get_headers(),
+                json=payload,
+                stream=True,
+                timeout=60,
+                verify=get_ssl_verify(),
+            )
+            if resp.status_code == 200:
+                break
+
+            # Handle HTTP Errors via Recovery Engine
             spinner.stop()
-            if attempt < len(backoff):
-                print_warn(f"Request failed: {e}. Retrying in {backoff[attempt]}s...")
-                time.sleep(backoff[attempt])
+            error_data = {}
+            try:
+                error_data = resp.json().get("error", {})
+                error_msg = error_data.get("message", resp.text[:200]) if isinstance(error_data, dict) else str(error_data)
+            except Exception:
+                error_msg = resp.text[:200]
+
+            err_type = classify_error(status_code=resp.status_code, error_msg=error_msg)
+            wait_s = _get_retry_wait(resp, backoff[min(attempt, len(backoff) - 1)])
+            action, val = handle_error_flow(
+                err_type,
+                status_code=resp.status_code,
+                current_model=current_model,
+                free_models=free_models,
+                prompt=prompt,
+                wait_seconds=wait_s,
+            )
+
+            if action == Action.RETRY_SAME:
                 spinner.start()
                 continue
-            print_error(f"Request failed: {e}")
-            return None
+            elif action == Action.SWITCH_MODEL and val:
+                payload["model"] = val["id"]
+                current_model = val
+                state.current_model = val
+                spinner.start()
+                continue
+            elif action in (Action.BYPASS_SSL, Action.UPDATE_KEY):
+                spinner.start()
+                continue
+            else:
+                return None
+
+        except requests.RequestException as e:
+            spinner.stop()
+            err_type = classify_error(exc=e)
+            wait_s = backoff[min(attempt, len(backoff) - 1)]
+            action, val = handle_error_flow(
+                err_type,
+                exc=e,
+                current_model=current_model,
+                free_models=free_models,
+                prompt=prompt,
+                wait_seconds=wait_s,
+            )
+
+            if action == Action.RETRY_SAME:
+                spinner.start()
+                continue
+            elif action == Action.SWITCH_MODEL and val:
+                payload["model"] = val["id"]
+                current_model = val
+                state.current_model = val
+                spinner.start()
+                continue
+            elif action in (Action.BYPASS_SSL, Action.UPDATE_KEY):
+                spinner.start()
+                continue
+            elif action == Action.SAVE_DRAFT:
+                return None
+            else:
+                return None
 
     full_text = ""
     start_time = time.time()
@@ -98,13 +163,20 @@ def stream_response(payload):
     elapsed = time.time() - start_time
     print()  # newline
 
-    # Detect empty responses
+    # Detect empty responses and trigger recovery
     if not full_text.strip():
-        print_warn(
-            f"⚠ Model returned an empty response after {elapsed:.1f}s. "
-            "This usually means the prompt was too large for the model's context window, "
-            "or the model is overloaded. Try /select to switch to a different model."
+        action, val = handle_error_flow(
+            ErrorType.EMPTY_RESPONSE,
+            current_model=current_model,
+            free_models=free_models,
+            prompt=prompt,
         )
+        if action == Action.SWITCH_MODEL and val:
+            payload["model"] = val["id"]
+            state.current_model = val
+            return stream_response(payload, free_models=free_models)
+        elif action == Action.RETRY_SAME:
+            return stream_response(payload, free_models=free_models)
         return None
 
     # Re-render as formatted markdown panel
@@ -129,7 +201,7 @@ def ask_model_isolated(prompt, model_id, max_retries=3):
 
     for attempt in range(max_retries):
         try:
-            resp = requests.post(url, headers=get_headers(), json=payload, timeout=60)
+            resp = requests.post(url, headers=get_headers(), json=payload, timeout=60, verify=get_ssl_verify())
             if resp.status_code == 429:
                 if attempt < max_retries - 1:
                     wait = _get_retry_wait(resp, 5 * (2 ** attempt))
@@ -150,6 +222,15 @@ def ask_model_isolated(prompt, model_id, max_retries=3):
                 return choices[0].get("message", {}).get("content", "")
             return ""
         except requests.RequestException as e:
+            err_type = classify_error(exc=e)
+            if err_type == ErrorType.SSL_ERROR:
+                action, _ = handle_error_flow(err_type, exc=e)
+                if action == Action.BYPASS_SSL:
+                    continue
+                return "Error: SSL certificate verification failed."
+            elif err_type == ErrorType.OFFLINE:
+                handle_error_flow(err_type, exc=e)
+                return "Error: Network connection offline."
             if attempt < max_retries - 1:
                 wait = 5 * (2 ** attempt)
                 print_warn(f"Request error: {e}. Retrying in {wait}s...")

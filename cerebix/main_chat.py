@@ -25,7 +25,7 @@ def ask_model(prompt, free_models=None):
     messages.append({"role": "user", "content": prompt})
 
     payload = {"model": model["id"], "messages": messages}
-    content = stream_response(payload)
+    content = stream_response(payload, free_models=free_models)
 
     if content:
         state.conversation.append({"role": "user", "content": prompt})

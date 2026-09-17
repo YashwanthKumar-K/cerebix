@@ -112,6 +112,50 @@ def save_user_config(cfg):
         print_warn(f"Could not save config file: {e}")
 
 
+def get_ssl_verify():
+    """Check whether SSL verification is enabled from state, env, or config."""
+    from . import state
+    if hasattr(state, "ssl_verify") and state.ssl_verify is not None:
+        return state.ssl_verify
+    # Env var overrides
+    if os.environ.get("CEREBIX_INSECURE_SSL", "").lower() in ("1", "true", "yes") or \
+       os.environ.get("CEREBIX_NO_SSL_VERIFY", "").lower() in ("1", "true", "yes"):
+        state.ssl_verify = False
+        try:
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        except Exception:
+            pass
+        return False
+    cfg = load_user_config()
+    val = cfg.get("ssl_verify", True)
+    state.ssl_verify = val
+    if not val:
+        try:
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        except Exception:
+            pass
+    return val
+
+
+def set_ssl_verify(verify: bool, persist: bool = False):
+    """Set SSL verification state and optionally persist to config."""
+    from . import state
+    state.ssl_verify = verify
+    if not verify:
+        try:
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        except Exception:
+            pass
+    if persist:
+        cfg = load_user_config()
+        cfg["ssl_verify"] = verify
+        save_user_config(cfg)
+
+
+
 def get_api_key():
     """Get API key from environment variable or ~/.cerebix/config.json."""
     # 1. Environment variable takes precedence

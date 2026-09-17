@@ -79,18 +79,43 @@ def _file_sort_key(rel_path):
     return (3, p)
 
 
+import difflib
+
+_BINARY_EXTENSIONS = {
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".zip", ".tar",
+    ".gz", ".7z", ".rar", ".exe", ".dll", ".so", ".dylib", ".bin", ".iso",
+    ".mp3", ".mp4", ".wav", ".avi", ".mov", ".pyc", ".class", ".db", ".sqlite"
+}
+
+
 def load_file_as_prompt(filepath, instruction="Review this file:"):
     if os.path.isdir(filepath):
         return "ERROR: That's a folder, not a file. Use /project instead."
+
+    ext = os.path.splitext(filepath)[1].lower()
+    if ext in _BINARY_EXTENSIONS:
+        return f"ERROR: '{os.path.basename(filepath)}' is a binary file ({ext}). Cerebix reviews text, source code, and markdown documents."
+
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             content = f.read()
     except FileNotFoundError:
-        return None
+        parent = os.path.dirname(filepath) or "."
+        target_name = os.path.basename(filepath)
+        suggestion = ""
+        try:
+            candidates = os.listdir(parent)
+            matches = difflib.get_close_matches(target_name, candidates, n=1, cutoff=0.5)
+            if matches:
+                suggested_path = os.path.join(parent, matches[0])
+                suggestion = f" Did you mean: '{suggested_path}'?"
+        except Exception:
+            pass
+        return f"ERROR: File not found: '{filepath}'.{suggestion}"
     except UnicodeDecodeError:
-        return "ERROR: Binary file — can't read as text."
+        return f"ERROR: '{os.path.basename(filepath)}' contains binary data — cannot read as UTF-8 text."
     except PermissionError:
-        return "ERROR: Permission denied — can't read that file."
+        return f"ERROR: Permission denied — cannot read '{filepath}'."
 
     lang = _get_lang_for_file(filepath)
     lines = content.splitlines()

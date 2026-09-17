@@ -4,7 +4,7 @@ import time
 import os
 import requests
 from datetime import datetime
-from .config import print_error, print_warn, print_info, get_headers, HAS_RICH, console
+from .config import print_error, print_warn, print_info, get_headers, get_ssl_verify, HAS_RICH, console
 from .spinner import _thinking_spinner, _PLAN_MESSAGES, _CODE_MESSAGES
 from .routing import _heuristic_pick, _pick_by_context
 from .models import choose_model
@@ -211,7 +211,7 @@ def _plan_project(description, model_id):
     with _thinking_spinner(_PLAN_MESSAGES):
         for attempt in range(len(backoff) + 1):
             try:
-                resp = requests.post(url, headers=get_headers(), json=payload, timeout=90)
+                resp = requests.post(url, headers=get_headers(), json=payload, timeout=90, verify=get_ssl_verify())
                 if resp.status_code == 429:
                     if attempt < len(backoff):
                         time.sleep(backoff[attempt])
@@ -266,7 +266,8 @@ def _plan_project(description, model_id):
                 url,
                 headers=get_headers(),
                 json={"model": model_id, "messages": retry_messages},
-                timeout=90
+                timeout=90,
+                verify=get_ssl_verify(),
             )
             if retry_resp.status_code == 200:
                 retry_raw = retry_resp.json().get("choices", [{}])[0].get("message", {}).get("content", "")
@@ -340,7 +341,7 @@ def _generate_file(file_info, plan, model_id, signature_cache=None):
     resp = None
     for attempt in range(len(backoff) + 1):
         try:
-            resp = requests.post(url, headers=get_headers(), json=payload, timeout=90)
+            resp = requests.post(url, headers=get_headers(), json=payload, timeout=90, verify=get_ssl_verify())
             if resp.status_code == 429:
                 if attempt < len(backoff):
                     print_warn(f"  Rate limited. Waiting {backoff[attempt]}s...")

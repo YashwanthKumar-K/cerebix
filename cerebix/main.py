@@ -18,7 +18,20 @@ except ImportError:
     pass
 
 from . import state
-from .config import check_api_key, print_info, print_error, print_warn, print_success, HAS_RICH, console, Fore, Style, CHARS_PER_TOKEN
+from .config import (
+    check_api_key,
+    print_info,
+    print_error,
+    print_warn,
+    print_success,
+    get_ssl_verify,
+    set_ssl_verify,
+    HAS_RICH,
+    console,
+    Fore,
+    Style,
+    CHARS_PER_TOKEN,
+)
 from .ui import show_banner, show_help, select_startup_mode
 from .scorecard import scorecard_load, scorecard_display, scorecard_record
 from .persistence import load_conversation, save_conversation, export_as_markdown
@@ -37,6 +50,7 @@ from .spinner import _thinking_spinner
 COMMAND_REGISTRY = [
     ("/help",      "Show all commands",              ""),
     ("/auto",      "Toggle Smart Auto-Routing",      ""),
+    ("/ssl",       "Toggle SSL verify (WiFi/proxies)",""),
     ("/select",    "Switch active model",             ""),
     ("/models",    "List all free models",            ""),
     ("/debate",    "AI vs AI multi-round debate",     "<topic>"),
@@ -110,6 +124,18 @@ def main():
     # Main loop
     while True:
         try:
+            if getattr(state, "draft_prompt", None):
+                draft = state.draft_prompt
+                state.draft_prompt = None
+                print_info(f"\n[Saved Draft Restored]: {draft[:80]}...")
+                try:
+                    send_draft = input("Send this prompt now? (y/n) [default: y]: ").strip().lower()
+                except (EOFError, KeyboardInterrupt):
+                    send_draft = "n"
+                if send_draft in ("", "y", "yes"):
+                    ask_model(draft, free_models)
+                    continue
+
             user_input = _get_input()
 
             if not user_input.strip():
@@ -129,6 +155,16 @@ def main():
             # ---- Help ----
             if cmd == "/help":
                 show_help()
+
+            # ---- SSL Verification Toggle ----
+            elif cmd == "/ssl":
+                curr = get_ssl_verify()
+                new_state = not curr
+                set_ssl_verify(new_state, persist=True)
+                if new_state:
+                    print_success("SSL verification ENABLED (Strict secure mode).")
+                else:
+                    print_warn("SSL verification DISABLED (Bypassing checks for captive portals/proxies).")
 
             # ---- System prompt ----
             elif cmd == "/system":
