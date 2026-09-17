@@ -15,8 +15,8 @@ if HAS_RICH:
 
 # Internal founder-level system prompt that structures how the model plans
 _PLANNER_SYSTEM = """\
-You are Cerebix Project Architect — a senior software engineer who designs clean, \
-modular, production-ready project structures.
+You are Cerebix Project Architect — an elite principal software engineer who designs clean, \
+modular, production-ready project architectures.
 
 When asked to plan a project you MUST respond with ONLY valid JSON — no explanation, \
 no markdown fences, no preamble. The JSON must strictly follow this schema:
@@ -34,22 +34,67 @@ no markdown fences, no preamble. The JSON must strictly follow this schema:
   ]
 }
 
+1-Shot Schema Example:
+{
+  "project_name": "task-tracker-cli",
+  "description": "A lightweight CLI task manager with SQLite persistence.",
+  "tech_stack": ["python", "sqlite3", "argparse"],
+  "files": [
+    {
+      "path": "requirements.txt",
+      "description": "Dependencies list (empty for standard library projects).",
+      "dependencies": []
+    },
+    {
+      "path": "README.md",
+      "description": "Setup, installation, and CLI usage documentation.",
+      "dependencies": []
+    },
+    {
+      "path": ".env.example",
+      "description": "Template configuration environment variables.",
+      "dependencies": []
+    },
+    {
+      "path": "tracker/models.py",
+      "description": "Task dataclass and database connection initialization.",
+      "dependencies": []
+    },
+    {
+      "path": "tracker/db.py",
+      "description": "CRUD operations for tasks using SQLite.",
+      "dependencies": ["tracker/models.py"]
+    },
+    {
+      "path": "tracker/cli.py",
+      "description": "CLI argument parser and command handlers.",
+      "dependencies": ["tracker/db.py", "tracker/models.py"]
+    },
+    {
+      "path": "main.py",
+      "description": "Entry point dispatching CLI commands.",
+      "dependencies": ["tracker/cli.py"]
+    }
+  ]
+}
+
 Rules:
-- Start with entry point files first (e.g. main.py, app.py, index.html).
-- Keep files small and single-purpose (150 lines each ideally).
-- List EVERY file needed to run the project — no placeholders.
-- The description must be specific enough that a developer can write the file from it alone.
-- Maximum 15 files for a focused, working project.
+- Scaffolding required: ALWAYS include README.md, requirements.txt (or package.json), and .env.example.
+- Topological Ordering: Order files dependencies-first (utilities, data models, schemas first; controllers/logic next; entry points like main.py last).
+- Single Responsibility: Each file must have a single clear purpose. If a file needs multiple class hierarchies or distinct domain responsibilities, split it.
+- Sizing: Target 8–12 files. Never exceed 15 files. Consolidate small utilities into shared modules if needed.
+- Specific Descriptions: Every description must state the exact classes, functions, and symbols the file must export so a developer can implement it independently.
 """
 
 _FILE_SYSTEM = """\
 You are Cerebix Code Generator. You write production-quality code for a specific file \
-inside a larger project. You MUST:
-- Output ONLY the raw file content — no markdown fences, no explanation before or after.
-- Make sure every import statement is correct relative to the project file structure provided.
-- Every function/class mentioned in the file description MUST be implemented.
-- Include brief inline comments for non-obvious logic.
-- The code must be complete and runnable — no TODO stubs, no placeholder functions.
+inside a larger project. You MUST follow these strict rules:
+- Output ONLY the raw file content. NEVER wrap your output in markdown code fences (no ``` or ```python). Return raw code only.
+- Only import libraries listed in the project's tech stack or from the standard library. Never introduce unlisted third-party dependencies.
+- Use type hints on function and method signatures. Write a concise one-line docstring for every public function and class.
+- Make sure every import statement matches the exact relative project paths and exported symbols provided in the manifest and signature context.
+- Every function, method, and class mentioned in the file description MUST be completely implemented.
+- The code must be complete, runnable, and production-ready — no TODO stubs, no placeholder functions, with proper error handling.
 """
 
 
@@ -75,45 +120,88 @@ def _extract_json(text):
 
 
 def _validate_plan(plan):
-    """Ensure the plan JSON is structurally valid and safe before execution."""
+    """Ensure the plan JSON is structurally valid and safe before execution. Returns (is_valid, error_reason)."""
     if not isinstance(plan, dict):
-        print_error("Plan is not a valid JSON object.")
-        return False
+        return False, "Plan root must be a valid JSON object."
     if "project_name" not in plan or not isinstance(plan["project_name"], str):
-        print_error("Plan is missing a valid 'project_name'.")
-        return False
+        return False, "Plan is missing a valid 'project_name' string."
         
     files = plan.get("files")
     if not isinstance(files, list):
-        print_error("Plan is missing a valid 'files' list.")
-        return False
-    if len(files) == 0 or len(files) > 15:
-        print_error(f"Plan validation failed: file count {len(files)} not in range 1-15.")
-        return False
+        return False, "Plan is missing a valid 'files' array."
+    if len(files) == 0:
+        return False, "Plan 'files' array is empty."
+    if len(files) > 15:
+        return False, f"Plan contains {len(files)} files (maximum allowed is 15)."
         
     seen_paths = set()
     for f in files:
         if not isinstance(f, dict):
-            print_error("A file entry is not a valid JSON object.")
-            return False
+            return False, "Each entry in 'files' must be a JSON object."
         path = f.get("path")
         desc = f.get("description")
-        if not path or not desc or not isinstance(path, str) or not isinstance(desc, str):
-            print_error("A file entry is missing 'path' or 'description'.")
-            return False
+        if not path or not isinstance(path, str):
+            return False, "A file entry is missing a valid 'path' string."
+        if not desc or not isinstance(desc, str):
+            return False, f"File '{path}' is missing a detailed 'description'."
         if path in seen_paths:
-            print_error(f"Plan validation failed: duplicate path '{path}'.")
-            return False
+            return False, f"Duplicate file path '{path}' found in plan."
         seen_paths.add(path)
-    return True
+    return True, ""
+
+
+def _extract_signatures(content, filepath=""):
+    """Extract public class and function signatures from generated code for cross-file context."""
+    if not content:
+        return ""
+    ext = os.path.splitext(filepath)[1].lower() if filepath else ".py"
+    sigs = []
+    
+    # Python-specific AST extraction
+    if ext == ".py":
+        import ast
+        try:
+            tree = ast.parse(content)
+            for node in ast.iter_child_nodes(tree):
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    args = [a.arg for a in node.args.args]
+                    sigs.append(f"def {node.name}({', '.join(args)}): ...")
+                elif isinstance(node, ast.ClassDef):
+                    class_methods = []
+                    for item in node.body:
+                        if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                            m_args = [a.arg for a in item.args.args if a.arg != "self"]
+                            class_methods.append(f"    def {item.name}({', '.join(m_args)}): ...")
+                    sigs.append(f"class {node.name}:")
+                    sigs.extend(class_methods[:6])
+            if sigs:
+                return "\n".join(sigs[:15])
+        except Exception:
+            pass
+
+    # Generic regex fallback for other languages (JS/TS/Go/etc.)
+    for line in content.splitlines():
+        stripped = line.strip()
+        if (stripped.startswith(("def ", "class ", "function ", "export function ", "const ", "export const ", "type ", "interface "))
+            and any(c in stripped for c in ("(", "{", ":"))):
+            sigs.append(stripped.rstrip("{:").strip())
+    return "\n".join(sigs[:12]) if sigs else ""
 
 
 def _plan_project(description, model_id):
     """Phase 1 — Ask the model to plan the project structure as JSON."""
     url = "https://openrouter.ai/api/v1/chat/completions"
+    
+    user_prompt = (
+        f"Plan this software project:\n\n"
+        f"Description:\n{description}\n\n"
+        f"Include: requirements.txt (or package.json), README.md, .env.example\n"
+        f"Output format: Strictly valid JSON conforming to the schema. No markdown fences, no explanation."
+    )
+    
     messages = [
         {"role": "system", "content": _PLANNER_SYSTEM},
-        {"role": "user", "content": f"Plan this project:\n\n{description}"},
+        {"role": "user", "content": user_prompt},
     ]
     payload = {"model": model_id, "messages": messages}
 
@@ -159,19 +247,51 @@ def _plan_project(description, model_id):
 
     raw = choices[0].get("message", {}).get("content", "")
     plan = _extract_json(raw)
-    if not plan or not _validate_plan(plan):
-        print_error("Could not parse or validate project plan JSON from model response.")
+    is_valid, err_reason = _validate_plan(plan) if plan else (False, "Could not extract valid JSON from response.")
+    
+    # Retry loop with error feedback if JSON validation failed
+    if not is_valid:
+        print_warn(f"Initial plan invalid ({err_reason}). Retrying with error feedback...")
+        retry_prompt = (
+            f"Your previous response failed validation with error: {err_reason}\n"
+            f"Please re-output the complete, corrected JSON object conforming strictly to the schema. "
+            f"Output ONLY valid JSON. No markdown fences, no intro, no outro."
+        )
+        retry_messages = list(messages)
+        retry_messages.append({"role": "assistant", "content": raw})
+        retry_messages.append({"role": "user", "content": retry_prompt})
+        
+        try:
+            retry_resp = requests.post(
+                url,
+                headers=get_headers(),
+                json={"model": model_id, "messages": retry_messages},
+                timeout=90
+            )
+            if retry_resp.status_code == 200:
+                retry_raw = retry_resp.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+                retry_plan = _extract_json(retry_raw)
+                if retry_plan:
+                    r_valid, r_err = _validate_plan(retry_plan)
+                    if r_valid:
+                        print_info("Plan successfully corrected via retry loop!")
+                        return retry_plan
+        except Exception:
+            pass
+
+        print_error(f"Could not parse or validate project plan JSON: {err_reason}")
         if HAS_RICH:
             console.print(Panel(raw[:2000], title="[red]Raw Model Output[/]", border_style="red"))
         else:
             print(f"\n--- Raw output (first 2000 chars) ---\n{raw[:2000]}")
         print_warn("Tip: Try a stronger model via /select (e.g. Nemotron Ultra), then /build again.")
         return None
+        
     return plan
 
 
-def _generate_file(file_info, plan, model_id):
-    """Phase 2 — Generate content for one specific file."""
+def _generate_file(file_info, plan, model_id, signature_cache=None):
+    """Phase 2 — Generate content for one specific file with cross-file dependency context."""
     url = "https://openrouter.ai/api/v1/chat/completions"
 
     file_manifest = "\n".join(
@@ -179,14 +299,35 @@ def _generate_file(file_info, plan, model_id):
         for f in plan.get("files", [])
     )
 
+    # Cross-file signature context injection: look up already-generated dependencies
+    dep_signatures = []
+    if signature_cache:
+        for dep in file_info.get("dependencies", []):
+            if dep in signature_cache:
+                dep_signatures.append(f"--- {dep} ---\n{signature_cache[dep]}")
+            else:
+                for cached_path, sig in signature_cache.items():
+                    if os.path.basename(cached_path) == os.path.basename(dep):
+                        dep_signatures.append(f"--- {cached_path} ---\n{sig}")
+                        break
+
+    dep_section = ""
+    if dep_signatures:
+        dep_section = (
+            f"Already-generated dependency signatures (MUST import/call these exact function/class signatures):\n"
+            + "\n".join(dep_signatures)
+            + "\n\n"
+        )
+
     user_prompt = (
         f"Project: {plan.get('project_name', 'project')}\n"
         f"Tech stack: {', '.join(plan.get('tech_stack', []))}\n\n"
-        f"Project file manifest (for correct import paths):\n{file_manifest}\n\n"
+        f"Project file manifest:\n{file_manifest}\n\n"
+        f"{dep_section}"
         f"NOW WRITE THE FILE: {file_info['path']}\n"
         f"Purpose: {file_info['description']}\n"
         f"This file imports from: {', '.join(file_info.get('dependencies', [])) or 'none'}\n\n"
-        f"Output ONLY the raw file content. No fences, no explanation."
+        f"Output ONLY the raw file content. NEVER wrap in markdown code blocks. No explanation."
     )
 
     messages = [
@@ -227,7 +368,18 @@ def _generate_file(file_info, plan, model_id):
     fence = re.match(r"^```[\w]*\n([\s\S]+?)\n```$", content.strip())
     if fence:
         content = fence.group(1)
-    return content.strip()
+        
+    cleaned_content = content.strip()
+    
+    # Syntax validation check for Python files
+    if file_info["path"].endswith(".py") and cleaned_content:
+        import ast
+        try:
+            ast.parse(cleaned_content)
+        except SyntaxError as syn_err:
+            print_warn(f"  [Syntax Notice] In {file_info['path']} line {syn_err.lineno}: {syn_err.msg}")
+
+    return cleaned_content
 
 
 def _display_plan(plan):
@@ -371,6 +523,7 @@ def run_project_build(description, free_models):
         print_info(f"\nPhase 2 — Generating {file_count} file(s)...")
         generated = {}
         failed = []
+        signature_cache = {}
 
         for i, file_info in enumerate(plan["files"], 1):
             fpath = file_info["path"]
@@ -380,10 +533,15 @@ def run_project_build(description, free_models):
                 print(f"\n  ({i}/{file_count}) {fpath}")
 
             with _thinking_spinner(_CODE_MESSAGES):
-                content = _generate_file(file_info, plan, generator_model["id"])
+                content = _generate_file(file_info, plan, generator_model["id"], signature_cache=signature_cache)
 
             if content:
                 generated[fpath] = content
+                # Cache signatures for downstream dependent files
+                sig = _extract_signatures(content, fpath)
+                if sig:
+                    signature_cache[fpath] = sig
+
                 if HAS_RICH:
                     console.print(f"  [bold green][OK][/] {fpath}")
                 else:

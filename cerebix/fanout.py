@@ -58,10 +58,18 @@ def fan_out(prompt, free_models):
     # Optional synthesis
     if input("\nSynthesize? (y/n): ").strip().lower() == "y":
         synth_prompt = (
-            f"Synthesize the following responses to: '{prompt}'\n\n"
+            f"You are an expert research synthesizer. You have queried multiple AI models with the prompt: '{prompt}'\n\n"
+            f"Your goals:\n"
+            f"1. Identify the unique contributions, ideas, or insights each model provided.\n"
+            f"2. Highlight where the models agree and where their approaches diverge.\n"
+            f"3. Produce a cohesive, unified synthesis that combines the best points into a single definitive answer.\n\n"
+            f"Format your output in clean markdown:\n"
+            f"- **Consensus Overview**\n"
+            f"- **Comparative Analysis & Distinct Insights**\n"
+            f"- **Unified Synthesis**\n\n"
         )
-        for i, (name, _, text) in enumerate(results, 1):
-            synth_prompt += f"--- Response {i} ({name}) ---\n{text}\n\n"
+        for i, (name, mid, text) in enumerate(results, 1):
+            synth_prompt += f"--- Response {i} (Model: {name} | ID: {mid}) ---\n{text}\n\n"
         judge = state.current_model or free_models[0]
         print_info(f"Synthesizing with {judge['name']}...")
         synth = ask_model_isolated(synth_prompt, judge["id"])

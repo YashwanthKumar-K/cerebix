@@ -4,6 +4,81 @@ from . import state
 from .config import IGNORE_DIRS, IGNORE_EXTENSIONS, MAX_FILE_SIZE_KB, CHARS_PER_TOKEN, print_info, print_error, print_warn
 from .models import format_ctx
 
+_EXT_LANG_MAP = {
+    ".py": "python",
+    ".js": "javascript",
+    ".jsx": "javascript",
+    ".ts": "typescript",
+    ".tsx": "typescript",
+    ".html": "html",
+    ".htm": "html",
+    ".css": "css",
+    ".json": "json",
+    ".md": "markdown",
+    ".sh": "bash",
+    ".bash": "bash",
+    ".zsh": "bash",
+    ".ps1": "powershell",
+    ".yaml": "yaml",
+    ".yml": "yaml",
+    ".sql": "sql",
+    ".go": "go",
+    ".rs": "rust",
+    ".java": "java",
+    ".c": "c",
+    ".cpp": "cpp",
+    ".h": "c",
+    ".hpp": "cpp",
+    ".toml": "toml",
+    ".xml": "xml",
+}
+
+
+def _get_lang_for_file(filepath):
+    ext = os.path.splitext(filepath)[1].lower()
+    return _EXT_LANG_MAP.get(ext, "")
+
+
+def _generate_ascii_tree(file_paths):
+    """Generate a clean ASCII file tree representation from a list of relative paths."""
+    tree = {}
+    for path in sorted(file_paths):
+        parts = path.replace("\\", "/").split("/")
+        curr = tree
+        for p in parts:
+            curr = curr.setdefault(p, {})
+
+    lines = []
+    def _walk(d, prefix=""):
+        items = list(d.items())
+        for idx, (name, subtree) in enumerate(items):
+            is_last = idx == len(items) - 1
+            connector = "└── " if is_last else "├── "
+            if subtree:  # directory
+                lines.append(f"{prefix}{connector}{name}/")
+                extension = "    " if is_last else "│   "
+                _walk(subtree, prefix + extension)
+            else:
+                lines.append(f"{prefix}{connector}{name}")
+    _walk(tree)
+    return "\n".join(lines)
+
+
+def _file_sort_key(rel_path):
+    """Sort files logically: scaffolding & models first, main entrypoints last."""
+    p = rel_path.lower().replace("\\", "/")
+    base = os.path.basename(p)
+    if base in ("readme.md", "requirements.txt", "package.json", "pyproject.toml", ".env.example", "setup.py"):
+        return (0, p)
+    if "config" in base or "schema" in base or "model" in base or "state" in base:
+        return (1, p)
+    if "util" in p or "helper" in p or "common" in p:
+        return (2, p)
+    if base in ("main.py", "index.js", "app.py", "server.js"):
+        return (4, p)
+    return (3, p)
+
+
 def load_file_as_prompt(filepath, instruction="Review this file:"):
     if os.path.isdir(filepath):
         return "ERROR: That's a folder, not a file. Use /project instead."
@@ -16,15 +91,24 @@ def load_file_as_prompt(filepath, instruction="Review this file:"):
         return "ERROR: Binary file — can't read as text."
     except PermissionError:
         return "ERROR: Permission denied — can't read that file."
-    return f"{instruction}\n\nFile: {os.path.basename(filepath)}\n```\n{content}\n```"
+
+    lang = _get_lang_for_file(filepath)
+    lines = content.splitlines()
+    line_count = len(lines)
+    size_kb = os.path.getsize(filepath) / 1024
+
+    # Truncation guard for massive individual files (>1500 lines) to prevent blowing context
+    if line_count > 1500:
+        content = "\n".join(lines[:1500]) + f"\n\n[File truncated at 1500 lines due to context limits. Full file ({line_count} lines) exists on disk.]"
+
+    return f"{instruction}\n\nFile: {os.path.basename(filepath)} ({line_count} lines, {size_kb:.1f} KB)\n```{lang}\n{content}\n```"
 
 
 def load_project_as_prompt(folder_path, instruction="Review this project:"):
     if not os.path.isdir(folder_path):
         return None
 
-    combined = [f"{instruction}\n\nProject: {os.path.basename(folder_path)}\n"]
-    file_count = 0
+    file_entries = []
 
     # Patterns and directories we MUST NEVER upload to an external API
     SECRET_PATTERNS = [
@@ -52,21 +136,36 @@ def load_project_as_prompt(folder_path, instruction="Review this project:"):
             fpath = os.path.join(root, fname)
             try:
                 if os.path.getsize(fpath) > MAX_FILE_SIZE_KB * 1024:
-                    combined.append(f"\n[SKIPPED - too large]: {fpath}\n")
                     continue
                 with open(fpath, "r", encoding="utf-8") as f:
                     content = f.read()
             except (UnicodeDecodeError, PermissionError):
                 continue
             rel = os.path.relpath(fpath, folder_path)
-            combined.append(f"\n--- File: {rel} ---\n```\n{content}\n```\n")
-            file_count += 1
+            file_entries.append((rel, content))
 
-    if file_count == 0:
+    if not file_entries:
         return "ERROR: No readable text files found in that folder."
+
+    # Sort files logically: scaffolding/configs/utils first, entry points last
+    file_entries.sort(key=lambda x: _file_sort_key(x[0]))
+    rel_paths = [e[0] for e in file_entries]
+
+    # Generate visual file structure tree
+    ascii_tree = _generate_ascii_tree(rel_paths)
+    combined = [
+        f"{instruction}\n\nProject: {os.path.basename(folder_path)}",
+        f"Project Structure:\n```text\n{ascii_tree}\n```\n",
+    ]
+
+    for rel, content in file_entries:
+        lang = _get_lang_for_file(rel)
+        line_count = len(content.splitlines())
+        combined.append(f"--- File: {rel} ({line_count} lines) ---\n```{lang}\n{content}\n```\n")
 
     result = "\n".join(combined)
     est_tokens = len(result) // CHARS_PER_TOKEN
+    file_count = len(file_entries)
     ctx_limit = state.current_model.get("context", 0) if state.current_model else 0
     model_name = state.current_model.get("name", "current model") if state.current_model else "current model"
     print_info(f"Collected {file_count} files — ~{est_tokens:,} tokens")

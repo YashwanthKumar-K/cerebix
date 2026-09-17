@@ -62,13 +62,19 @@ def run_consensus(prompt, free_models):
         return
 
     synthesis_prompt = (
-        f"You are synthesizing multiple AI responses to the same question.\n\n"
-        f"Original question: {prompt}\n\n"
-        f"Please produce one comprehensive, accurate answer by combining the best of all responses below, "
-        f"removing redundancies, and resolving any contradictions:\n\n"
+        f"You are synthesizing multiple AI responses to the same question as an expert judge.\n\n"
+        f"Original question:\n{prompt}\n\n"
+        f"Instructions:\n"
+        f"1. Weight factual claims carefully based on the reasoning and evidence provided in each response.\n"
+        f"2. Explicitly note any points where models disagree or contradict each other, and clarify which perspective is most accurate.\n"
+        f"3. If you are genuinely uncertain which response is correct on a specific detail, state that uncertainty rather than guessing.\n"
+        f"4. Eliminate redundancies and produce a comprehensive, structured response formatted in clean markdown:\n"
+        f"   - **Summary & Consensus** (core points all models agree on)\n"
+        f"   - **Key Nuances & Disagreements** (different perspectives or edge cases noted)\n"
+        f"   - **Comprehensive Answer** (unified, complete solution)\n\n"
     )
-    for i, (name, _, text) in enumerate(results, 1):
-        synthesis_prompt += f"--- Response {i} ({name}) ---\n{text}\n\n"
+    for i, (name, mid, text) in enumerate(results, 1):
+        synthesis_prompt += f"--- Response {i} (Model: {name} | ID: {mid}) ---\n{text}\n\n"
 
     judge = state.current_model or free_models[0]
     print_info(f"Synthesizing with {judge['name']}...")
