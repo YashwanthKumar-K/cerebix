@@ -53,6 +53,7 @@ def show_help():
 | Command | Description |
 |---|---|
 | `/debate <topic>` | **AI Arena** — two models debate (PRO vs CON) across rounds + judge verdict |
+| `/collab <topic>` | **Critic-Refiner** — one model plans, another critiques, loop until approved |
 | `/consensus <prompt>` | Jury mode — query 2+ models, then synthesize |
 | `/fanout <prompt>` | Send same prompt to multiple models in parallel |
 | `/build <description>` | **Project Build** — plan + generate a full multi-file project to disk |
