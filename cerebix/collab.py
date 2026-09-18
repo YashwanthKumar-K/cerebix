@@ -28,6 +28,7 @@ if HAS_RICH:
     from rich.table import Table
     from rich import box
     from rich.text import Text
+    from rich.markdown import Markdown
 
 
 # ── System Prompts (~60 tokens each) ────────────────────────────────────────
@@ -243,7 +244,7 @@ def _confidence_badge(score: int) -> str:
 def _render_plan(plan: str, version: int, planner_id: str) -> None:
     if HAS_RICH:
         console.print(Panel(
-            plan,
+            Markdown(plan),
             title=f"[bold cyan]📝 Plan v{version}[/bold cyan]  [dim]{planner_id}[/dim]",
             border_style="cyan",
             padding=(1, 2)
@@ -302,7 +303,7 @@ def _render_critique(critique: dict, iteration: int, critic_id: str) -> None:
 def _render_final(plan: str, stats: dict) -> None:
     if HAS_RICH:
         console.print(Panel(
-            plan,
+            Markdown(plan),
             title="[bold green]✅ Final Approved Plan[/bold green]",
             border_style="green",
             box=box.DOUBLE,
