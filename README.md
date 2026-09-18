@@ -1,28 +1,32 @@
-# cerebix
+<div align="center">
 
-A fast, terminal-native AI client built around OpenRouter's free model tier. 
+# Cerebix
 
-Instead of locking you into a single model, Cerebix auto-routes prompts to the best free specialist (coding, math, reasoning, creative), pits models against each other in structured multi-round debates, and scaffolds entire multi-file codebases from scratch.
+**Multi-model AI orchestration for the terminal.**
 
----
+Route prompts to the best free model. Pit models against each other in debates.
+Run collaborative critic-refiner loops. Generate entire codebases. All from one CLI.
 
-## Highlights
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![OpenRouter](https://img.shields.io/badge/powered%20by-OpenRouter-purple.svg)](https://openrouter.ai/)
 
-- **100% Free**: Strict zero-cost validation. Filters out broken or misleadingly tagged models so you never spend API credits.
-- **Smart Auto-Routing (`/auto`)**: Classifies prompts and routes coding tasks to code models, reasoning tasks to math/logic models, and creative writing to high-temperature models. Learns your preferences over time via `/rate`.
-- **Multi-Agent Debate (`/debate`)**: Pit two models against each other in an adversarial, multi-turn clash (Affirmative vs Negative). Each round rebuts the opponent's exact arguments before an impartial judge model delivers a verdict.
-- **Consensus & Fan-Out (`/consensus`, `/fanout`)**: Query multiple models in parallel to eliminate hallucinations and synthesize a unified answer.
-- **Project Builder (`/build`)**: Give it a specification. Cerebix plans the architecture, generates each file with cross-file signature awareness, and writes a runnable project to disk.
-- **Codebase Context (`/project`, `/file`)**: Ingest whole folders or single files with automatic secret stripping (`.env`, `.pem`, cloud credentials) and visual ASCII file trees.
-- **Interactive Autocomplete**: Type `/` for a live, searchable command palette powered by `prompt_toolkit`.
+</div>
 
 ---
 
-## Quickstart
+## Why Cerebix?
 
-### Installation
+Most AI terminals lock you into one model. Cerebix treats models as a **team** — routing each prompt to the right specialist, running structured multi-model workflows, and learning your preferences over time.
 
-Requires Python 3.10+.
+- **Zero cost.** Strict free-tier validation. Filters out broken or misleadingly tagged models so you never spend API credits.
+- **Smart routing.** Classifies prompts by task type (code, math, reasoning, creative) and picks the best available model automatically.
+- **Multi-model workflows.** Debate, consensus, fan-out, and critic-refiner loops — all built in.
+- **Full project generation.** Describe what you want. Cerebix plans the architecture, generates every file with cross-file awareness, and writes it to disk.
+
+---
+
+## Installation
 
 ```bash
 git clone https://github.com/YashwanthKumar-K/cerebix.git
@@ -30,41 +34,110 @@ cd cerebix
 pip install -e .
 ```
 
-### Running
+Then run:
 
 ```bash
 cerebix
 ```
 
-On first launch, if no API key is found, Cerebix opens the [OpenRouter Key Settings](https://openrouter.ai/settings/keys) in your browser and prompts you to paste your free key directly into the terminal. It gets saved to `~/.cerebix/config.json` automatically — no environment variable setup needed.
-
-*(Alternatively, you can export `OPENROUTER_API_KEY="sk-or-v1-..."` in your shell).*
+On first launch, Cerebix opens [OpenRouter Key Settings](https://openrouter.ai/settings/keys) in your browser and prompts you to paste your free API key. It gets saved to `~/.cerebix/config.json` — no environment variables needed.
 
 ---
 
 ## Commands
 
-| Command | Usage | Description |
-|:---|:---|:---|
-| `/auto` | `/auto` | Toggle smart task-based auto-routing on/off |
-| `/debate` | `/debate <topic> [--style ...] [--rounds 2-4]` | Two models debate opposing sides with a judge verdict |
-| `/consensus` | `/consensus <prompt>` | Query multiple models in parallel and synthesize a single verified answer |
-| `/fanout` | `/fanout <prompt>` | Broadcast prompt to multiple models for side-by-side comparison |
-| `/build` | `/build <description>` | Architect and generate a full multi-file project to disk |
-| `/file` | `/file <path> [instruction]` | Load a file into context for review or debugging |
-| `/project` | `/project <path> [instruction]` | Load an entire repository with secret filtering and an ASCII tree |
-| `/models` | `/models` | Display live table of available free models and context windows |
-| `/select` | `/select` | Switch active model manually |
-| `/system` | `/system [persona]` | View, set, or clear system prompt |
-| `/rate` | `/rate <1-10>` | Rate the last response to train your local auto-routing scorecard |
-| `/scores` | `/scores` | View historical model scorecard by category |
-| `/savecode` | `/savecode` | Extract generated code blocks to collision-safe files |
-| `/tokens` | `/tokens` | Inspect estimated token usage and context utilization |
-| `/save` | `/save` | Save conversation state to disk |
-| `/load` | `/load` | Restore previous conversation state |
-| `/export` | `/export` | Export session transcript to formatted Markdown |
-| `/clear` | `/clear` | Clear conversation history |
-| `/exit` | `/exit` | Save and quit |
+### Chat
+
+| Command | Description |
+|:--------|:------------|
+| *(type anything)* | Chat with the active model |
+| `/system <text>` | Set a custom persona or system instruction |
+| `/system` | View or clear the current system prompt |
+| `/render` | Toggle display mode — `panel` (formatted) vs `stream` (live tokens) |
+| `/ssl` | Toggle SSL verification (useful behind proxies or captive portals) |
+
+### Model Selection
+
+| Command | Description |
+|:--------|:------------|
+| `/select` | Switch to a different model |
+| `/models` | List all available free models with context windows |
+| `/auto` | Toggle smart auto-routing (picks the best model per task type) |
+| `/scores` | View the model performance scorecard |
+| `/rate <1-10>` | Rate the last response to improve auto-routing |
+
+### Multi-Model Modes
+
+| Command | Description |
+|:--------|:------------|
+| `/debate <topic>` | Two models argue opposing sides across rounds, then a judge delivers a verdict |
+| `/collab <topic>` | Critic-Refiner loop — one model plans, another critiques with structured feedback, repeat until approved |
+| `/consensus <prompt>` | Query multiple models in parallel, then synthesize a single verified answer |
+| `/fanout <prompt>` | Broadcast the same prompt to multiple models for side-by-side comparison |
+
+### Project & Context
+
+| Command | Description |
+|:--------|:------------|
+| `/build <description>` | Plan architecture, generate every file, and write a runnable project to disk |
+| `/file <path>` | Load a file into context for review or debugging |
+| `/project <path>` | Load an entire folder with automatic secret filtering and an ASCII file tree |
+
+### Session
+
+| Command | Description |
+|:--------|:------------|
+| `/save` | Save conversation to disk |
+| `/load` | Restore a previous conversation |
+| `/export` | Export session transcript as Markdown |
+| `/savecode` | Extract generated code blocks to files |
+| `/tokens` | Show estimated token usage and context utilization |
+| `/clear` | Clear conversation history |
+| `/exit` | Save and quit |
+
+---
+
+## Multi-Model Workflows
+
+### Debate — `/debate`
+
+Pit two models against each other in a structured, multi-round adversarial debate with stance-forcing and a judicial verdict.
+
+```
+/debate Should AI replace software engineers? --style savage --rounds 3
+```
+
+Styles: `standard`, `savage`, `dramatic`, `academic`
+
+### Collab — `/collab`
+
+A Critic-Refiner loop. One model generates a plan, another critiques it with structured JSON feedback (confidence score, severity-tagged issues, concrete suggestions). The planner revises until the critic approves or max rounds are hit.
+
+```
+/collab Design a REST API for a task manager app
+/collab Optimize a web scraper --rounds 3 --threshold 80 --swap
+```
+
+Flags:
+- `--rounds N` — max iterations (default: 5, max: 10)
+- `--threshold N` — confidence score to auto-approve (default: 85)
+- `--swap` — swap planner/critic roles halfway through
+
+### Consensus — `/consensus`
+
+Query 2+ models with the same prompt, then have a lead model synthesize their answers into one verified response.
+
+```
+/consensus Explain the CAP theorem with real-world examples
+```
+
+### Fan-Out — `/fanout`
+
+Send the same prompt to multiple models in parallel for side-by-side comparison.
+
+```
+/fanout Write a Python function to merge two sorted lists
+```
 
 ---
 
@@ -78,11 +151,26 @@ Settings are stored in `~/.cerebix/config.json`:
 }
 ```
 
-Environment variables always take precedence if defined:
-- `OPENROUTER_API_KEY`: overrides the stored key in `config.json`.
+The `OPENROUTER_API_KEY` environment variable takes precedence over the stored key if set.
+
+---
+
+## Requirements
+
+- Python 3.10+
+- [OpenRouter](https://openrouter.ai/) API key (free tier works)
+
+Dependencies (installed automatically):
+
+| Package | Purpose |
+|:--------|:--------|
+| `requests` | HTTP client for OpenRouter API |
+| `rich` | Formatted terminal output — panels, tables, markdown |
+| `colorama` | Cross-platform ANSI color support |
+| `prompt_toolkit` | Interactive autocomplete for slash commands |
 
 ---
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE) — Yashwanth Kumar K
