@@ -35,65 +35,44 @@ def show_help():
 ## 💬 Chat
 | Command | Description |
 |---|---|
-| *(type anything)* | Chat with the current model |
-| `/render` | Toggle response display mode (`panel` vs `stream`) |
-| `/ssl` | Toggle SSL verification for captive portals/proxies |
-| `/system <text>` | Set a system persona/instruction |
-| `/system` | View or clear current system prompt |
+| *(type anything)* | Chat with the active model |
+| `/system <text>` | Set / view / clear system prompt |
+| `/render` | Toggle `panel` ↔ `stream` display |
+| `/ssl` | Toggle SSL verify (proxies / captive portals) |
 
-## 🧭 Model Selection
+## 🧭 Models
 | Command | Description |
 |---|---|
-| `/select` | Pick a different model |
-| `/models` | List all available free models |
-| `/auto` | Toggle smart auto-routing (picks best model per task) |
-| `/scores` | View the model performance scorecard |
+| `/select` | Switch model |
+| `/models` | List free models |
+| `/auto` | Toggle smart auto-routing |
+| `/scores` | View scorecard |
+| `/rate <1-10>` | Rate last response |
 
-## 🤖 Multi-Model Modes
+## 🤖 Multi-Model
 | Command | Description |
 |---|---|
-| `/debate <topic>` | **AI Arena** — two models debate (PRO vs CON) across rounds + judge verdict |
-| `/collab <topic>` | **Critic-Refiner** — one model plans, another critiques, loop until approved |
-| `/consensus <prompt>` | Jury mode — query 2+ models, then synthesize |
-| `/fanout <prompt>` | Send same prompt to multiple models in parallel |
-| `/build <description>` | **Project Build** — plan + generate a full multi-file project to disk |
+| `/debate <topic>` | Two models debate + judge verdict |
+| `/collab <topic>` | Plan → critique → revise loop until approved |
+| `/consensus <prompt>` | Query N models, synthesize one answer |
+| `/fanout <prompt>` | Same prompt to N models side-by-side |
 
-## 🏗️ Project Build Mode (/build)
-Describe what you want and Cerebix builds it in 3 phases:
-
-**Phase 1 — Plan:** A reasoning model outputs a full JSON file structure
-(every file, its purpose, and cross-file dependencies).
-You review and confirm the plan before anything is written.
-
-**Phase 2 — Generate:** Each file is generated separately with the full
-project manifest as context, so imports stay consistent across files.
-
-**Phase 3 — Write:** All files are saved to a local folder of your choice.
-A CEREBIX_BUILD.md manifest is created listing every file's status.
-
-Examples:
-  /build A Flask REST API with JWT auth and SQLite
-  /build A Python CLI to-do app saved to a JSON file
-  /build A static portfolio website with HTML, CSS, and JS
-
-Tip: Use /select to pick a strong model (Nemotron Ultra, DeepSeek R1)
-before /build for best results. Weaker models may fail the planning phase.
-
-## 📁 Context
+## 🏗️ Build & Context
 | Command | Description |
 |---|---|
-| `/file <path>` | Send a file for review |
-| `/project <path>` | Send an entire project folder |
-| `/savecode` | Extract & save code blocks from last response |
+| `/build <desc>` | Plan → generate → write a full project to disk |
+| `/file <path>` | Load a file into context |
+| `/project <path>` | Load an entire folder |
+| `/savecode` | Extract code blocks to files |
 
 ## 💾 Session
 | Command | Description |
 |---|---|
-| `/save` | Save state.conversation |
-| `/load` | Load previous state.conversation |
-| `/export` | Export state.conversation as markdown |
-| `/tokens` | Show token usage estimate |
-| `/clear` | Clear state.conversation history |
+| `/save` | Save conversation |
+| `/load` | Load previous conversation |
+| `/export` | Export as markdown |
+| `/tokens` | Token usage estimate |
+| `/clear` | Clear history |
 | `/exit` | Save & exit |
 """
     if HAS_RICH:
