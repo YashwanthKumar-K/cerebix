@@ -4,26 +4,17 @@ from .routing import route_model
 from .api import stream_response
 
 def get_system_prompt(model=None):
-    """Build an authentic system prompt that preserves technical quality without faking model identity."""
     if state.system_prompt:
         return state.system_prompt
 
-    model_name = model.get("name", "AI Assistant") if model else "AI Assistant"
-    model_id = model.get("id", "") if model else ""
-
-    id_line = f"You are {model_name}"
-    if model_id:
-        id_line += f" ({model_id})"
-    id_line += ", accessed through Cerebix — an open-source multi-model terminal client."
+    name = model.get("name", "AI Assistant") if model else "AI Assistant"
+    mid  = model.get("id", "") if model else ""
+    id_line = f"You are {name} ({mid})" if mid else f"You are {name}"
 
     return (
-        f"{id_line}\n"
-        f"- If asked about your identity or which model you are, truthfully identify yourself as {model_name}.\n"
-        "- Do not claim to be 'Cerebix AI' or claim that Cerebix is your creator or proprietary infrastructure; Cerebix is simply the terminal client.\n"
-        "- Respond in clean markdown with proper code blocks labeled by language.\n"
-        "- Be direct. Avoid conversational filler phrases like \"Great question!\", \"Certainly!\", or \"Sure, I can help with that!\".\n"
-        "- If you are unsure about something or if information is missing, state it explicitly rather than guessing.\n"
-        "- Prefer short, dense explanations over long verbose ones."
+        f"{id_line}, accessed through Cerebix — an open-source multi-model terminal client.\n"
+        f"- Identify truthfully as {name}; never claim to be 'Cerebix AI'.\n"
+        "- Clean markdown, labeled code blocks. Direct, no filler. State uncertainty explicitly. Short, dense answers."
     )
 
 
