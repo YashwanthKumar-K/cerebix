@@ -391,7 +391,9 @@ def run_collab(raw_args: str, free_models: list[dict]) -> None:
         response = ask_model_isolated(full_prompt, planner_id)
 
     if not response or response.startswith("Error:") or response.startswith("API Error:"):
-        print_error(f"Planner failed: {response}")
+        reason = response if response else "Model returned empty response"
+        print_error(f"Planner failed: {reason}")
+        print_warn("Try /select to pick a stronger model, then run /collab again.")
         return
 
     current_plan = response

@@ -283,7 +283,7 @@ def ask_model_isolated(prompt, model_id, max_retries=3):
                 return f"API Error: {data['error'].get('message', data['error'])}"
             choices = data.get("choices", [])
             if choices and len(choices) > 0:
-                return choices[0].get("message", {}).get("content", "")
+                return choices[0].get("message", {}).get("content", "") or ""
             return ""
         except requests.RequestException as e:
             err_type = classify_error(exc=e)
