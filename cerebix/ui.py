@@ -101,52 +101,72 @@ before /build for best results. Weaker models may fail the planning phase.
         print(text)
 
 
-def select_startup_mode(free_models, saved_model=None):
-    """Prompt user to pick a startup mode (Auto, Manual model picker, or Quick Start)."""
-
+def select_startup_mode(free_models, saved_model=None, history_count=0):
+    """Prompt user to pick a startup mode (Auto, Manual, Quick Start, or Resume Session)."""
 
     fallback_name = saved_model["name"] if saved_model else free_models[0]["name"]
+    has_history = history_count > 0
 
     if HAS_RICH:
         options = (
             "[bold cyan][1][/] [bold white]Smart Auto Mode[/] [bold green](Recommended)[/]\n"
-            "    [dim]Cerebix dynamically picks the best specialized model for each prompt (coding, reasoning, etc.)[/]\n\n"
+            "    [dim]Fresh session: dynamically picks best model per prompt (coding, reasoning, etc.)[/]\n\n"
             "[bold cyan][2][/] [bold white]Manual Mode[/]\n"
-            "    [dim]Browse the list of available free models and pick one yourself[/]\n\n"
+            "    [dim]Fresh session: browse the list of available free models and pick one yourself[/]\n\n"
             "[bold cyan][3][/] [bold white]Quick Start[/]\n"
-            f"    [dim]Instantly start chatting using {fallback_name}[/]"
+            f"    [dim]Fresh session: instantly start chatting using {fallback_name}[/]"
         )
+        if has_history:
+            options += (
+                f"\n\n[bold cyan][4][/] [bold white]Resume Previous Session[/]\n"
+                f"    [dim]Continue your saved conversation ({history_count} messages with {fallback_name})[/]"
+            )
         console.print()
         console.print(Panel(options, title="[bold cyan]Select Startup Mode[/]", border_style="cyan", box=box.ROUNDED))
     else:
         print("\n=== Select Startup Mode ===")
-        print("  [1] Smart Auto Mode (Recommended) - Auto-routes each prompt to the best model")
-        print("  [2] Manual Mode - Choose a specific model from the list")
-        print(f"  [3] Quick Start - Use {fallback_name} immediately")
+        print("  [1] Smart Auto Mode (Recommended) - Fresh session, auto-routes to best model")
+        print("  [2] Manual Mode - Fresh session, choose a specific model from the list")
+        print(f"  [3] Quick Start - Fresh session, use {fallback_name} immediately")
+        if has_history:
+            print(f"  [4] Resume Previous Session - Continue previous {history_count} messages")
 
+    valid_range = "[1-4]" if has_history else "[1-3]"
     while True:
         try:
-            choice = input("\nPick a mode [1-3] (default: 1): ").strip()
+            choice = input(f"\nPick a mode {valid_range} (default: 1): ").strip()
         except (EOFError, KeyboardInterrupt):
             sys.exit(0)
 
         if not choice or choice == "1":
+            state.conversation = []
             state.auto_routing = True
             state.current_model = saved_model if saved_model else free_models[0]
             print_success(f"Started in Smart Auto Mode! (Fallback: {state.current_model['name']})")
-            print_info("Cerebix will automatically route your questions to the best model.")
+            print_info("Fresh session ready. Cerebix will automatically route your questions to the best model.")
             break
         elif choice == "2":
+            state.conversation = []
             state.auto_routing = False
             state.current_model = choose_model(free_models)
             print_success(f"Selected: {state.current_model['name']} ({state.current_model['id']})")
+            print_info("Fresh session ready.")
             break
         elif choice == "3":
+            state.conversation = []
             state.auto_routing = False
             state.current_model = saved_model if saved_model else free_models[0]
             print_success(f"Started with: {state.current_model['name']}")
+            print_info("Fresh session ready.")
+            break
+        elif choice == "4" and has_history:
+            from .persistence import load_conversation
+            load_conversation()
+            state.auto_routing = False
+            state.current_model = saved_model if saved_model else free_models[0]
+            print_success(f"Resumed previous session with {state.current_model['name']} ({len(state.conversation)} messages).")
             break
         else:
-            print_error("Please enter 1, 2, or 3.")
+            print_error(f"Please enter a number between 1 and {4 if has_history else 3}.")
 
 

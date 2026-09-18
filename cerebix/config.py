@@ -255,10 +255,33 @@ def check_api_key():
         print_info('  export OPENROUTER_API_KEY="sk-or-v1-..."')
     sys.exit(1)
 
+def get_last_model():
+    """Get the last selected model dictionary from ~/.cerebix/config.json."""
+    cfg = load_user_config()
+    return cfg.get("last_model")
+
+
+def set_last_model(model):
+    """Persist the chosen model dictionary in ~/.cerebix/config.json."""
+    if not model or not isinstance(model, dict):
+        return
+    cfg = load_user_config()
+    cfg["last_model"] = model
+    save_user_config(cfg)
+
+
 # ---------- Constants ----------
 
-HISTORY_FILE    = "chat_history.json"
-SCORECARD_FILE  = "scorecard.json"
+# Centralize user history and scorecard in ~/.cerebix/
+HISTORY_FILE    = str(CEREBIX_DIR / "chat_history.json")
+SCORECARD_FILE  = str(CEREBIX_DIR / "scorecard.json")
+
+# Fall back to local CWD file if central doesn't exist yet but local does
+if not Path(HISTORY_FILE).exists() and Path("chat_history.json").exists():
+    HISTORY_FILE = "chat_history.json"
+if not Path(SCORECARD_FILE).exists() and Path("scorecard.json").exists():
+    SCORECARD_FILE = "scorecard.json"
+
 CHARS_PER_TOKEN = 4
 MAX_FILE_SIZE_KB = 200
 IGNORE_DIRS      = {".git", "__pycache__", "node_modules", "venv", ".venv", "dist", "build", ".next", ".cache"}

@@ -60,6 +60,7 @@ def stream_response(payload, free_models=None):
     """POST with stream=True, print tokens live, return full text with automated recovery."""
     url = "https://openrouter.ai/api/v1/chat/completions"
     payload["stream"] = True
+    payload.setdefault("max_tokens", 4096)
 
     # Extract user prompt for recovery context
     user_msgs = [m.get("content", "") for m in payload.get("messages", []) if m.get("role") == "user"]
@@ -157,6 +158,7 @@ def stream_response(payload, free_models=None):
     start_time = time.time()
     header_printed = False
     token_count = 0
+    finish_reason = None
 
     try:
         for line in resp.iter_lines(decode_unicode=True):
@@ -170,6 +172,9 @@ def stream_response(payload, free_models=None):
                     chunk = json.loads(payload_str)
                     choices = chunk.get("choices", [])
                     if choices and len(choices) > 0:
+                        fr = choices[0].get("finish_reason")
+                        if fr:
+                            finish_reason = fr
                         token = choices[0].get("delta", {}).get("content", "")
                         if token:
                             token_count += 1
@@ -212,6 +217,11 @@ def stream_response(payload, free_models=None):
             return stream_response(payload, free_models=free_models)
         return None
 
+    # Metadata string with optional truncation hint
+    meta_info = f"{elapsed:.1f}s • {token_count} tokens • {current_model.get('name', 'AI')}"
+    if finish_reason == "length":
+        meta_info += " • [yellow]max output limit reached[/yellow]"
+
     # Render response cleanly — SINGLE PASS ONLY!
     if render_mode == "panel":
         # Refined mode: render the clean markdown panel ONCE. No duplicate raw stream!
@@ -219,20 +229,20 @@ def stream_response(payload, free_models=None):
             console.print()
             console.print(Panel(
                 Markdown(full_text),
-                title=f"[bold green]Response[/] [dim]({elapsed:.1f}s • {token_count} tokens • {current_model.get('name', 'AI')})[/]",
+                title=f"[bold green]Response[/] [dim]({meta_info})[/]",
                 border_style="green",
                 box=box.ROUNDED,
             ))
         else:
             print(f"\n{full_text}")
-            print(f"\n[Generated in {elapsed:.1f}s • {token_count} tokens]")
+            print(f"\n[Generated in {meta_info}]")
     else:
         # Live stream mode: tokens were already printed live, print compact metadata footer
         print()  # newline
         if HAS_RICH:
-            console.print(f"[dim](Generated in {elapsed:.1f}s • {token_count} tokens • {current_model.get('name', 'AI')})[/dim]")
+            console.print(f"[dim]({meta_info})[/dim]")
         else:
-            print(f"\n[Generated in {elapsed:.1f}s • {token_count} tokens]")
+            print(f"\n[Generated in {meta_info}]")
 
     return full_text
 
@@ -240,7 +250,7 @@ def stream_response(payload, free_models=None):
 def ask_model_isolated(prompt, model_id, max_retries=3):
     """Send a single prompt (no state.conversation history). Used for fan-out & consensus."""
     url = "https://openrouter.ai/api/v1/chat/completions"
-    payload = {"model": model_id, "messages": [{"role": "user", "content": prompt}]}
+    payload = {"model": model_id, "messages": [{"role": "user", "content": prompt}], "max_tokens": 4096}
 
     for attempt in range(max_retries):
         try:

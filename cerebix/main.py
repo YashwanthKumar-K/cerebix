@@ -28,6 +28,8 @@ from .config import (
     set_ssl_verify,
     get_render_mode,
     set_render_mode,
+    get_last_model,
+    set_last_model,
     HAS_RICH,
     console,
     Fore,
@@ -36,7 +38,12 @@ from .config import (
 )
 from .ui import show_banner, show_help, select_startup_mode
 from .scorecard import scorecard_load, scorecard_display, scorecard_record
-from .persistence import load_conversation, save_conversation, export_as_markdown
+from .persistence import (
+    load_conversation,
+    save_conversation,
+    load_conversation_metadata,
+    export_as_markdown,
+)
 from .models import get_free_models, display_model_table, choose_model, format_ctx
 from .main_chat import ask_model
 from .routing import classify_prompt
@@ -112,7 +119,9 @@ def main():
 
     show_banner()
     scorecard_load()
-    saved_model = load_conversation()
+    history_meta = load_conversation_metadata()
+    saved_model = get_last_model() or history_meta.get("model")
+    history_count = history_meta.get("count", 0)
 
     # Fetch models
     with _thinking_spinner(["Connecting to OpenRouter...", "Fetching free models..."]):
@@ -121,8 +130,10 @@ def main():
         print_error("No free models found. Check your API key.")
         return
 
-    # Startup mode selection
-    select_startup_mode(free_models, saved_model)
+    # Startup mode selection (clean fresh session by default, explicit resume option if history exists)
+    select_startup_mode(free_models, saved_model=saved_model, history_count=history_count)
+    if state.current_model:
+        set_last_model(state.current_model)
 
     # Main loop
     while True:
@@ -297,8 +308,23 @@ def main():
                 with _thinking_spinner(["Refreshing available models..."]):
                     free_models = get_free_models()
                 if free_models:
-                    state.current_model = choose_model(free_models)
-                    print_success(f"Selected: {state.current_model['name']}")
+                    new_model = choose_model(free_models)
+                    if new_model:
+                        state.current_model = new_model
+                        set_last_model(new_model)
+                        print_success(f"Selected: {state.current_model['name']}")
+                        if state.conversation:
+                            try:
+                                clear_choice = input(
+                                    f"Start fresh conversation with {state.current_model['name']}? (y/n) [default: y]: "
+                                ).strip().lower()
+                            except (EOFError, KeyboardInterrupt):
+                                clear_choice = "y"
+                            if clear_choice in ("", "y", "yes"):
+                                state.conversation = []
+                                print_info("Started fresh conversation.")
+                            else:
+                                print_info(f"Retained {len(state.conversation)} messages in history.")
                 else:
                     print_error("No free models available.")
 
