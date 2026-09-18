@@ -56,6 +56,15 @@ def clean_mojibake(text):
     return text
 
 
+
+def _rebuild_system_prompt(payload, new_model):
+    """Rebuild the system message in payload for the new model after a recovery switch."""
+    from .main_chat import get_system_prompt  # lazy import to avoid circular dep
+    messages = payload.get("messages", [])
+    if messages and messages[0].get("role") == "system":
+        messages[0]["content"] = get_system_prompt(new_model)
+
+
 def stream_response(payload, free_models=None):
     """POST with stream=True, print tokens live, return full text with automated recovery."""
     url = "https://openrouter.ai/api/v1/chat/completions"
@@ -110,6 +119,7 @@ def stream_response(payload, free_models=None):
                 continue
             elif action == Action.SWITCH_MODEL and val:
                 payload["model"] = val["id"]
+                _rebuild_system_prompt(payload, val)
                 current_model = val
                 state.current_model = val
                 spinner.start()
@@ -138,6 +148,7 @@ def stream_response(payload, free_models=None):
                 continue
             elif action == Action.SWITCH_MODEL and val:
                 payload["model"] = val["id"]
+                _rebuild_system_prompt(payload, val)
                 current_model = val
                 state.current_model = val
                 spinner.start()
