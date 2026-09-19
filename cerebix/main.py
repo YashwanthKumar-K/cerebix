@@ -1,3 +1,4 @@
+import os
 import shlex
 import sys
 if True:
@@ -80,6 +81,9 @@ COMMAND_REGISTRY = [
     ("/load",      "Load previous conversation",      ""),
     ("/export",    "Export as markdown",               ""),
     ("/clear",     "Clear conversation",              ""),
+    ("/history",   "Set history limit (turns kept)",   "<N>"),
+    ("/workspace", "Set workspace root for tools",     "<path>"),
+    ("/allow",     "Toggle bash tool on/off",          "<on|off>"),
     ("/exit",      "Save & exit",                     ""),
 ]
 
@@ -377,6 +381,55 @@ def main():
                     console.print(t)
                 else:
                     print(f"Messages: {len(state.conversation)}\nEst. Tokens: {est:,}")
+
+            # ---- History limit ----
+            elif cmd == "/history":
+                if len(parts) < 2:
+                    cur = state.history_limit
+                    cur_disp = "unlimited" if cur is None else cur
+                    print_info(f"History limit: {cur_disp} (current turns: {len(state.conversation)})")
+                else:
+                    try:
+                        n = int(parts[1])
+                        if n <= 0:
+                            state.history_limit = None
+                            print_success("History limit removed (keeping all turns).")
+                        else:
+                            state.history_limit = n
+                            if len(state.conversation) > state.history_limit:
+                                state.conversation = state.conversation[-state.history_limit:]
+                            print_success(f"History limited to last {n} message(s).")
+                    except ValueError:
+                        print_error("Usage: /history <N>  (N = number of messages to keep, 0 = unlimited)")
+
+            # ---- Workspace ----
+            elif cmd == "/workspace":
+                if len(parts) < 2:
+                    cur = state.workspace_root or os.getcwd()
+                    print_info(f"Current workspace: {cur}")
+                else:
+                    new_ws = os.path.abspath(parts[1])
+                    if not os.path.isdir(new_ws):
+                        print_error(f"Not a directory: {new_ws}")
+                    else:
+                        state.workspace_root = new_ws
+                        print_success(f"Workspace set to {new_ws}")
+
+            # ---- Allow bash ----
+            elif cmd == "/allow":
+                if len(parts) < 2:
+                    status = "ON" if state.allow_bash else "OFF"
+                    print_info(f"Bash tool: {status}")
+                else:
+                    val = parts[1].lower()
+                    if val in ("on", "true", "yes", "1", "bash"):
+                        state.allow_bash = True
+                        print_success("Bash tool ENABLED — model can run shell commands in workspace.")
+                    elif val in ("off", "false", "no", "0"):
+                        state.allow_bash = False
+                        print_success("Bash tool DISABLED.")
+                    else:
+                        print_error("Usage: /allow <on|off>")
 
             # ---- Clear ----
             elif cmd == "/clear":

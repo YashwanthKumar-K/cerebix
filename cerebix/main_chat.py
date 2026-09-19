@@ -29,7 +29,13 @@ def ask_model(prompt, free_models=None):
     messages = []
     active_system = get_system_prompt(model)
     messages.append({"role": "system", "content": active_system})
-    messages.extend(state.conversation)
+
+    # Apply history limit to reduce token usage
+    history = state.conversation
+    if state.history_limit and len(history) > state.history_limit:
+        history = history[-state.history_limit:]
+
+    messages.extend(history)
     messages.append({"role": "user", "content": prompt})
 
     payload = {

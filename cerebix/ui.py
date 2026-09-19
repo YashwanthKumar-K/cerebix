@@ -65,6 +65,13 @@ def show_help():
 | `/project <path>` | Load an entire folder |
 | `/savecode` | Extract code blocks to files |
 
+## 🔧 Agent & Workspace
+| Command | Description |
+|---|---|
+| `/workspace <path>` | Set sandbox root for file tools |
+| `/allow <on/off>` | Enable/disable bash tool |
+| `/history <N>` | Limit context to last N messages (0 = unlimited) |
+
 ## 💾 Session
 | Command | Description |
 |---|---|
